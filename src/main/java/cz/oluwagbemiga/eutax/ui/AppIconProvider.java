@@ -10,9 +10,6 @@ import java.awt.Image;
 import java.awt.Window;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
 /**
  * Provides the shared application icon for every window, ensuring future frames reuse the same image.
@@ -21,7 +18,7 @@ import java.util.List;
 public final class AppIconProvider {
 
     private static final String ICON_RESOURCE = "/assets/at_logo.jpg";
-    private static List<Image> cachedIcons;
+    private static volatile Image cachedIcon;
 
     private AppIconProvider() {
         throw new IllegalStateException("Utility class");
@@ -31,26 +28,26 @@ public final class AppIconProvider {
         if (window == null) {
             return;
         }
-        List<Image> icons = getIcons();
-        if (!icons.isEmpty()) {
-            window.setIconImages(icons);
+        Image icon = getIcon();
+        if (icon != null) {
+            window.setIconImage(icon);
         }
     }
 
-    private static List<Image> getIcons() {
-        List<Image> icons = cachedIcons;
-        if (icons != null) {
-            return icons;
+    private static Image getIcon() {
+        Image icon = cachedIcon;
+        if (icon != null) {
+            return icon;
         }
         synchronized (AppIconProvider.class) {
-            if (cachedIcons == null) {
-                cachedIcons = loadIcons();
+            if (cachedIcon == null) {
+                cachedIcon = loadIcon();
             }
-            return cachedIcons;
+            return cachedIcon;
         }
     }
 
-    private static List<Image> loadIcons() {
+    private static Image loadIcon() {
         try (InputStream stream = AppIconProvider.class.getResourceAsStream(ICON_RESOURCE)) {
             if (stream == null) {
                 log.warn("Application icon {} not found; falling back to default.", ICON_RESOURCE);
@@ -61,24 +58,18 @@ public final class AppIconProvider {
                 log.warn("Unable to decode application icon {}; falling back to default.", ICON_RESOURCE);
                 return fallbackIcon();
             }
-            List<Image> icons = new ArrayList<>();
-            icons.add(image);
-            return Collections.unmodifiableList(icons);
+            return image;
         } catch (IOException ex) {
             log.warn("Failed to load application icon {}; falling back to default.", ICON_RESOURCE, ex);
             return fallbackIcon();
         }
     }
 
-    private static List<Image> fallbackIcon() {
+    private static Image fallbackIcon() {
         Icon i = UIManager.getIcon("OptionPane.informationIcon");
         if (i instanceof ImageIcon icon) {
-            Image image = icon.getImage();
-            if (image != null) {
-                return Collections.singletonList(image);
-            }
+            return icon.getImage();
         }
-        return Collections.emptyList();
+        return null;
     }
 }
-
