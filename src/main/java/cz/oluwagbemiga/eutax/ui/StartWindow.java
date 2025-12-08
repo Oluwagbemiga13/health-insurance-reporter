@@ -17,6 +17,7 @@ public class StartWindow extends JFrame {
 
     public StartWindow() {
         configureLookAndFeel();
+        AppIconProvider.apply(this);
         buildUi();
     }
 

@@ -24,6 +24,7 @@ public class SourcesSelectionWindow extends JFrame {
     public SourcesSelectionWindow() {
         setTitle("Výběr zdrojů");
         setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        AppIconProvider.apply(this);
         buildUi();
         pack();
         setLocationRelativeTo(null);
@@ -178,4 +179,3 @@ public class SourcesSelectionWindow extends JFrame {
         errorLabel.setText(" ");
     }
 }
-
