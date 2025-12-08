@@ -29,7 +29,7 @@ public class StartWindow extends JFrame {
     }
 
     private void buildUi() {
-        setTitle("Health Insurance Reporter");
+        setTitle("Kontrola přehledů zdravotního pojištění");
         setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
@@ -46,12 +46,12 @@ public class StartWindow extends JFrame {
         gbc.anchor = GridBagConstraints.CENTER;
         gbc.insets = new Insets(0, 0, 16, 0);
 
-        JLabel title = new JLabel("Health Insurance Reporter");
+        JLabel title = new JLabel("Kontrola přehledů zdravotního pojištění");
         title.setFont(title.getFont().deriveFont(Font.BOLD, 24f));
         card.add(title, gbc);
 
         gbc.gridy++;
-        JLabel subtitle = new JLabel("Generate and manage health insurance reports with ease.");
+        JLabel subtitle = new JLabel("Snadno kontrolujte reporty pro zdravotní pojištění.");
         subtitle.setFont(subtitle.getFont().deriveFont(Font.PLAIN, 14f));
         SubtitleWrap.wrap(subtitle, 400);
         gbc.insets = new Insets(0, 0, 24, 0);
@@ -59,15 +59,16 @@ public class StartWindow extends JFrame {
 
         gbc.gridy++;
         gbc.insets = new Insets(0, 0, 12, 0);
-        JButton newReportBtn = new JButton("New Report");
+        JButton newReportBtn = new JButton("Nová kontrola");
+        newReportBtn.addActionListener(e -> openSourcesSelectionWindow());
         card.add(newReportBtn, gbc);
 
         gbc.gridy++;
-        JButton openReportBtn = new JButton("Open Existing Report");
+        JButton openReportBtn = new JButton("Otevřít existující kontrolu <JE TO POTŘEBNÉ?> ");
         card.add(openReportBtn, gbc);
 
         gbc.gridy++;
-        JButton settingsBtn = new JButton("Settings");
+        JButton settingsBtn = new JButton("Nastavení <JE TO POTŘEBNÉ?> ");
         card.add(settingsBtn, gbc);
 
         gbc = new GridBagConstraints();
@@ -81,6 +82,13 @@ public class StartWindow extends JFrame {
         pack();
         setLocationRelativeTo(null);
         setVisible(true);
+    }
+
+    private void openSourcesSelectionWindow() {
+        SwingUtilities.invokeLater(() -> {
+            new SourcesSelectionWindow();
+            dispose();
+        });
     }
 
     public static void main(String[] args) {
