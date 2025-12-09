@@ -6,7 +6,8 @@ import org.junit.jupiter.api.Test;
 import java.nio.file.Path;
 import java.time.LocalDate;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReportFromFilesTest {
 
@@ -21,7 +22,7 @@ class ReportFromFilesTest {
         WalkerResult result = reportFromFiles.readReports(REPORT_DIR);
 
         assertEquals(3, result.parsedFileNames().size());
-        assertEquals(2,result.errorReports().size() );
+        assertEquals(2, result.errorReports().size());
 
         assertTrue(result.parsedFileNames().stream().anyMatch(parsed ->
                 parsed.ico().equals("00000001") && parsed.date().equals(LocalDate.of(2025, 1, 1))));

@@ -10,7 +10,7 @@ class ParsedFileNameTest {
 
     @Test
     void componentsExposeValues() {
-        ParsedFileName parsed = new ParsedFileName("12345678",  LocalDate.of(2024, 11, 1));
+        ParsedFileName parsed = new ParsedFileName("12345678", LocalDate.of(2024, 11, 1));
 
         assertEquals("12345678", parsed.ico());
         assertEquals(LocalDate.of(2024, 11, 1), parsed.date());
@@ -18,10 +18,10 @@ class ParsedFileNameTest {
 
     @Test
     void equalsAndHashCodeUseAllComponents() {
-        ParsedFileName first = new ParsedFileName("12345678",  LocalDate.of(2024, 11, 1));
-        ParsedFileName same = new ParsedFileName("12345678",  LocalDate.of(2024, 11, 1));
-        ParsedFileName differentIco = new ParsedFileName("11111111",  LocalDate.of(2024, 11, 1));
-        ParsedFileName differentDate = new ParsedFileName("12345678",  LocalDate.of(2024, 10, 1));
+        ParsedFileName first = new ParsedFileName("12345678", LocalDate.of(2024, 11, 1));
+        ParsedFileName same = new ParsedFileName("12345678", LocalDate.of(2024, 11, 1));
+        ParsedFileName differentIco = new ParsedFileName("11111111", LocalDate.of(2024, 11, 1));
+        ParsedFileName differentDate = new ParsedFileName("12345678", LocalDate.of(2024, 10, 1));
 
         assertEquals(first, same);
         assertEquals(first.hashCode(), same.hashCode());
@@ -32,7 +32,7 @@ class ParsedFileNameTest {
 
     @Test
     void toStringContainsComponentValues() {
-        ParsedFileName parsed = new ParsedFileName("12345678",  LocalDate.of(2024, 11, 1));
+        ParsedFileName parsed = new ParsedFileName("12345678", LocalDate.of(2024, 11, 1));
 
         String rendered = parsed.toString();
 

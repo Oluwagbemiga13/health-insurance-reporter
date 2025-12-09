@@ -3,11 +3,8 @@ package cz.oluwagbemiga.eutax.ui;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.imageio.ImageIO;
-import javax.swing.Icon;
-import javax.swing.ImageIcon;
-import javax.swing.UIManager;
-import java.awt.Image;
-import java.awt.Window;
+import javax.swing.*;
+import java.awt.*;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -18,7 +15,7 @@ import java.io.InputStream;
 public final class AppIconProvider {
 
     private static final String ICON_RESOURCE = "/assets/at_logo.jpg";
-    private static volatile Image cachedIcon;
+    private static Image cachedIcon;
 
     private AppIconProvider() {
         throw new IllegalStateException("Utility class");
