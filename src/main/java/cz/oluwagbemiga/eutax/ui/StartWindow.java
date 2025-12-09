@@ -11,6 +11,7 @@ import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.util.List;
 
 @Slf4j
 public class StartWindow extends JFrame {
@@ -22,10 +23,16 @@ public class StartWindow extends JFrame {
     }
 
     private void configureLookAndFeel() {
-        try {
-            UIManager.setLookAndFeel("javax.swing.plaf.nimbus.NimbusLookAndFeel");
-        } catch (Exception ignored) {
-            // Nimbus may not be available on all JRE distributions; fall back silently.
+        List<String> lookAndFeels = List.of(UIManager.getSystemLookAndFeelClassName(),
+                "com.sun.java.swing.plaf.nimbus.NimbusLookAndFeel");
+
+        for (String lf : lookAndFeels) {
+            try {
+                UIManager.setLookAndFeel(lf);
+                break;
+            } catch (Exception e) {
+                log.error("Failed to set system look and feel", e);
+            }
         }
     }
 

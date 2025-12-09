@@ -60,7 +60,7 @@ Potřebujeme znát přesnou jmennou konvenci (viz níže).
 
 ---
 
-# ❓ Otevřené otázky ?
+# ❓ Otevřené otázky
 
 Níže jsou otázky, které je třeba vyjasnit, aby bylo možné dokončit implementaci aplikace:
 
@@ -93,9 +93,10 @@ Možné scénáře:
 Potřebujeme znát:
 
 - názvy sloupců
-- který sloupec obsahuje jméno klienta
 - zda je jméno unikátní
 - zda existují další identifikátory (IČO, rodné číslo apod.)
+- příponu souboru (XLSX, ODS) ** XSLX ** 
+-  BACHA používají se listy a soubor je na rok
 
 ---
 
@@ -108,5 +109,7 @@ Např.:
 - obsahují cokoliv jiného mimo názvu klienta a iča?
 - obsahují celé jméno klienta?
 - používají jednotný formát, nebo se může lišit?
+- PPPZ-02604477-2025-11_VZP_07.12.2025
+- 10751416_VZP_2025_11
 
 Tato informace je zásadní pro implementaci spolehlivého párování.
