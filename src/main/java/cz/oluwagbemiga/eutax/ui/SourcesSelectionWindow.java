@@ -1,5 +1,7 @@
 package cz.oluwagbemiga.eutax.ui;
 
+import cz.oluwagbemiga.eutax.pojo.CzechMonth;
+
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
@@ -12,6 +14,7 @@ public class SourcesSelectionWindow extends JFrame {
 
     private final JTextField folderField = new JTextField();
     private final JTextField spreadsheetField = new JTextField();
+    private final JComboBox<CzechMonth> monthComboBox = new JComboBox<>(CzechMonth.values());
     private final JLabel errorLabel = new JLabel(" ");
     private final JButton continueButton = new JButton("Pokračovat");
 
@@ -31,7 +34,7 @@ public class SourcesSelectionWindow extends JFrame {
         content.add(buildForm(), BorderLayout.CENTER);
         content.add(buildBottomPanel(), BorderLayout.SOUTH);
         setContentPane(content);
-        setPreferredSize(new Dimension(600, 320));
+        setPreferredSize(new Dimension(600, 380));
     }
 
     private JPanel buildForm() {
@@ -59,6 +62,18 @@ public class SourcesSelectionWindow extends JFrame {
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.weightx = 1;
         panel.add(createPickerPanel(spreadsheetField, this::pickSpreadsheet), gbc);
+
+        gbc.gridy++;
+        gbc.insets = new Insets(16, 0, 8, 8);
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.weightx = 0;
+        panel.add(new JLabel("Měsíc"), gbc);
+
+        gbc.gridy++;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1;
+        monthComboBox.setSelectedIndex(java.time.LocalDate.now().getMonthValue() - 1);
+        panel.add(monthComboBox, gbc);
 
         gbc.gridy++;
         gbc.insets = new Insets(16, 0, 0, 0);
@@ -92,7 +107,13 @@ public class SourcesSelectionWindow extends JFrame {
         bottom.add(cancel);
 
         continueButton.setEnabled(false);
-        continueButton.addActionListener(e -> JOptionPane.showMessageDialog(this, "Zatím není implementováno"));
+        continueButton.addActionListener(e -> {
+            dispose();
+            String folder = folderField.getText();
+            String spreadsheet = spreadsheetField.getText();
+            CzechMonth month = (CzechMonth) monthComboBox.getSelectedItem();
+            SwingUtilities.invokeLater(() -> new ResultsWindow(folder, spreadsheet, month));
+        });
         bottom.add(continueButton);
         return bottom;
     }
