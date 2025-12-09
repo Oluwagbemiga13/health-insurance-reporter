@@ -7,11 +7,16 @@ import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.prefs.Preferences;
 
 public class SourcesSelectionWindow extends JFrame {
 
     private static final String[] SUPPORTED_EXTENSIONS = {".xlsx", ".xls", ".ods"};
+    private static final String PREF_FOLDER_PATH = "folderPath";
+    private static final String PREF_SPREADSHEET_PATH = "spreadsheetPath";
+    private static final String PREF_SELECTED_MONTH = "selectedMonth";
 
+    private final Preferences prefs = Preferences.userNodeForPackage(SourcesSelectionWindow.class);
     private final JTextField folderField = new JTextField();
     private final JTextField spreadsheetField = new JTextField();
     private final JComboBox<CzechMonth> monthComboBox = new JComboBox<>(CzechMonth.values());
@@ -22,10 +27,31 @@ public class SourcesSelectionWindow extends JFrame {
         setTitle("Výběr zdrojů");
         setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         AppIconProvider.apply(this);
+        loadSavedPreferences();
         buildUi();
         pack();
         setLocationRelativeTo(null);
         setVisible(true);
+    }
+
+    private void loadSavedPreferences() {
+        String savedFolder = prefs.get(PREF_FOLDER_PATH, "");
+        String savedSpreadsheet = prefs.get(PREF_SPREADSHEET_PATH, "");
+        int savedMonth = prefs.getInt(PREF_SELECTED_MONTH, java.time.LocalDate.now().getMonthValue() - 1);
+
+        if (!savedFolder.isEmpty()) {
+            folderField.setText(savedFolder);
+        }
+        if (!savedSpreadsheet.isEmpty()) {
+            spreadsheetField.setText(savedSpreadsheet);
+        }
+        monthComboBox.setSelectedIndex(Math.max(0, Math.min(savedMonth, 11)));
+    }
+
+    private void savePreferences() {
+        prefs.put(PREF_FOLDER_PATH, folderField.getText());
+        prefs.put(PREF_SPREADSHEET_PATH, spreadsheetField.getText());
+        prefs.putInt(PREF_SELECTED_MONTH, monthComboBox.getSelectedIndex());
     }
 
     private void buildUi() {
@@ -72,7 +98,7 @@ public class SourcesSelectionWindow extends JFrame {
         gbc.gridy++;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.weightx = 1;
-        monthComboBox.setSelectedIndex(java.time.LocalDate.now().getMonthValue() - 1);
+        monthComboBox.addActionListener(e -> savePreferences());
         panel.add(monthComboBox, gbc);
 
         gbc.gridy++;
@@ -81,6 +107,9 @@ public class SourcesSelectionWindow extends JFrame {
         gbc.weightx = 1;
         panel.add(errorLabel, gbc);
         errorLabel.setForeground(new Color(176, 0, 32));
+
+        // Validate after UI is built with saved values
+        SwingUtilities.invokeLater(this::validateInputs);
 
         return panel;
     }
@@ -122,10 +151,16 @@ public class SourcesSelectionWindow extends JFrame {
         JFileChooser chooser = new JFileChooser();
         chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         chooser.setDialogTitle("Vyberte složku s reporty");
+        // Start from previously selected folder if it exists
+        String currentFolder = folderField.getText();
+        if (!currentFolder.isEmpty() && Files.isDirectory(Path.of(currentFolder))) {
+            chooser.setCurrentDirectory(Path.of(currentFolder).toFile());
+        }
         int result = chooser.showOpenDialog(this);
         if (result == JFileChooser.APPROVE_OPTION) {
             Path selected = chooser.getSelectedFile().toPath();
             folderField.setText(selected.toString());
+            savePreferences();
             validateInputs();
         }
     }
@@ -136,10 +171,21 @@ public class SourcesSelectionWindow extends JFrame {
         chooser.setDialogTitle("Vyberte tabulku klientů");
         chooser.setAcceptAllFileFilterUsed(false);
         chooser.addChoosableFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Excel nebo LibreOffice", "xlsx", "xls", "ods"));
+        // Start from previously selected file's directory if it exists
+        String currentSpreadsheet = spreadsheetField.getText();
+        if (!currentSpreadsheet.isEmpty()) {
+            Path currentPath = Path.of(currentSpreadsheet);
+            if (Files.isRegularFile(currentPath)) {
+                chooser.setSelectedFile(currentPath.toFile());
+            } else if (currentPath.getParent() != null && Files.isDirectory(currentPath.getParent())) {
+                chooser.setCurrentDirectory(currentPath.getParent().toFile());
+            }
+        }
         int result = chooser.showOpenDialog(this);
         if (result == JFileChooser.APPROVE_OPTION) {
             Path selected = chooser.getSelectedFile().toPath();
             spreadsheetField.setText(selected.toString());
+            savePreferences();
             validateInputs();
         }
     }
