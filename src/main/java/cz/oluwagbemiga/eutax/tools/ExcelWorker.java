@@ -14,7 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
-public class ExcelReader implements SpreadsheetReader {
+public class ExcelWorker implements SpreadsheetReader {
 
     @Override
     public List<Client> readClients(String filePath, CzechMonth month) throws FileNotFoundException {

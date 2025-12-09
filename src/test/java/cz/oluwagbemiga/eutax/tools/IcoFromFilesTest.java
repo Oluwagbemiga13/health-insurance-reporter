@@ -9,17 +9,17 @@ import java.time.LocalDate;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class ReportFromFilesTest {
+class IcoFromFilesTest {
 
     private static final String REPORT_DIR = Path.of("src", "test", "resources", "report_dir")
             .toAbsolutePath()
             .toString();
 
-    private final ReportFromFiles reportFromFiles = new ReportFromFiles();
+    private final IcoFromFiles icoFromFiles = new IcoFromFiles();
 
     @Test
     void readReportsParsesValidFilesAndTraversesDirectoryTree() {
-        WalkerResult result = reportFromFiles.readReports(REPORT_DIR);
+        WalkerResult result = icoFromFiles.readReports(REPORT_DIR);
 
         assertEquals(3, result.parsedFileNames().size());
         assertEquals(2, result.errorReports().size());
@@ -35,7 +35,7 @@ class ReportFromFilesTest {
 
     @Test
     void readReportsCollectsErrorsForInvalidFiles() {
-        WalkerResult result = reportFromFiles.readReports(REPORT_DIR);
+        WalkerResult result = icoFromFiles.readReports(REPORT_DIR);
 
         assertEquals(2, result.errorReports().size());
         assertTrue(result.errorReports().stream().anyMatch(error ->

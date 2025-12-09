@@ -10,13 +10,13 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class ExcelReaderTest {
+class ExcelWorkerTest {
 
 
     @Test
     @SneakyThrows
     void testReadClients() {
-        ExcelReader reader = new ExcelReader();
+        ExcelWorker reader = new ExcelWorker();
         String filePath = "src/test/resources/Zdrav. pojišťovny.xlsx";
 
         // Test reading from a month sheet - try with different months
@@ -53,7 +53,7 @@ class ExcelReaderTest {
     @Test
     @SneakyThrows
     void testReadClientsUnor() {
-        ExcelReader reader = new ExcelReader();
+        ExcelWorker reader = new ExcelWorker();
         String filePath = "src/test/resources/Zdrav. pojišťovny.xlsx";
 
         List<Client> clients = reader.readClients(filePath, CzechMonth.UNOR);
@@ -90,7 +90,7 @@ class ExcelReaderTest {
     @Test
     @SneakyThrows
     void testFileNotFound() {
-        ExcelReader reader = new ExcelReader();
+        ExcelWorker reader = new ExcelWorker();
         assertThrows(FileNotFoundException.class, () -> {
             reader.readClients("nonexistent.xlsx", CzechMonth.LEDEN);
         });

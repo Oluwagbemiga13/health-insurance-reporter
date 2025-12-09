@@ -25,7 +25,7 @@ import java.util.stream.Stream;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class ReportFromFiles {
+public class IcoFromFiles {
 
     private static final Pattern ICO_PATTERN = Pattern.compile("(?<!\\d)(\\d{8})(?!\\d)");
     private static final Pattern MONTH_PATTERN = Pattern.compile("^(0[1-9]|1[0-2])$");

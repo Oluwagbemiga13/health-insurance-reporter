@@ -1,0 +1,141 @@
+package cz.oluwagbemiga.eutax.tools;
+
+import cz.oluwagbemiga.eutax.pojo.Client;
+import cz.oluwagbemiga.eutax.pojo.CzechMonth;
+import cz.oluwagbemiga.eutax.pojo.ParsedFileName;
+import cz.oluwagbemiga.eutax.pojo.WalkerResult;
+import org.junit.jupiter.api.Test;
+
+import java.io.FileNotFoundException;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class MatchEvaluatorTest {
+
+    // Stub ExcelReader that returns predefined clients
+    static class ExcelWorkerStub extends ExcelWorker {
+        private final List<Client> clients;
+
+        ExcelWorkerStub(List<Client> clients) {
+            this.clients = clients;
+        }
+
+        @Override
+        public List<Client> readClients(String filePath, CzechMonth month) throws FileNotFoundException {
+            return clients;
+        }
+    }
+
+    // Stub IcoFromFiles that returns a predefined WalkerResult
+    static class IcoFromFilesStub extends IcoFromFiles {
+        private final WalkerResult result;
+
+        IcoFromFilesStub(WalkerResult result) {
+            this.result = result;
+        }
+
+        @Override
+        public WalkerResult readReports(String folderPath) {
+            return result;
+        }
+    }
+
+    @Test
+    void evaluateMatches_filtersByYearAndMonth_andSetsFlags() throws Exception {
+        // Given
+        List<Client> clients = List.of(
+                new Client("Klient A s.r.o", "00000001", false),
+                new Client("Klient B s.r.o", "00000002", false),
+                new Client("Klient C a.s.", "00000003", false)
+        );
+        int year = 2025;
+        CzechMonth month = CzechMonth.LEDEN; // January
+
+        List<ParsedFileName> parsed = List.of(
+                new ParsedFileName("00000001", LocalDate.of(year, month.getMonthNumber(), 15)), // match
+                new ParsedFileName("00000002", LocalDate.of(year, month.getMonthNumber(), 20)), // match
+                new ParsedFileName("00000003", LocalDate.of(year, month.getMonthNumber() == 12 ? 1 : month.getMonthNumber() + 1, 1)), // different month
+                new ParsedFileName("00000001", LocalDate.of(year, month.getMonthNumber(), 16)) // duplicate ICO same month
+        );
+        WalkerResult walkerResult = new WalkerResult(parsed, List.of());
+
+        MatchEvaluator evaluator = new MatchEvaluator(
+                new ExcelWorkerStub(clients),
+                new IcoFromFilesStub(walkerResult)
+        );
+
+        // When
+        List<Client> updated = evaluator.evaluateMatches("ignored.xlsx", "ignoredDir", month, year);
+
+        // Then
+        assertEquals(3, updated.size());
+        // to preserve input order
+        assertEquals("00000001", updated.get(0).ico());
+        assertTrue(updated.get(0).reportGenerated(), "ICO 00000001 should be marked as having report");
+        assertEquals("00000002", updated.get(1).ico());
+        assertTrue(updated.get(1).reportGenerated(), "ICO 00000002 should be marked as having report");
+        assertEquals("00000003", updated.get(2).ico());
+        assertFalse(updated.get(2).reportGenerated(), "ICO 00000003 has a report but in different month");
+    }
+
+    @Test
+    void evaluateMatches_noReports_marksAllFalse() throws Exception {
+        List<Client> clients = List.of(
+                new Client("Klient A s.r.o", "00000001", true), // input irrelevant, should be recalculated
+                new Client("Klient B s.r.o", "00000002", true)
+        );
+        WalkerResult empty = new WalkerResult(List.of(), List.of());
+        MatchEvaluator evaluator = new MatchEvaluator(new ExcelWorkerStub(clients), new IcoFromFilesStub(empty));
+
+        List<Client> updated = evaluator.evaluateMatches("ignored.xlsx", "ignoredDir", CzechMonth.UNOR, 2024);
+
+        assertEquals(2, updated.size());
+        assertFalse(updated.get(0).reportGenerated());
+        assertFalse(updated.get(1).reportGenerated());
+    }
+
+    @Test
+    void evaluateMatches_filtersOutDifferentYear() throws Exception {
+        List<Client> clients = List.of(new Client("Klient A s.r.o", "00000001", false));
+        int year = 2025;
+        CzechMonth month = CzechMonth.BREZEN;
+        List<ParsedFileName> parsed = new ArrayList<>();
+        parsed.add(new ParsedFileName("00000001", LocalDate.of(year - 1, month.getMonthNumber(), 10))); // different year
+        parsed.add(new ParsedFileName("00000001", LocalDate.of(year, month.getMonthNumber(), 10))); // matching
+        WalkerResult wr = new WalkerResult(parsed, List.of());
+
+        MatchEvaluator evaluator = new MatchEvaluator(new ExcelWorkerStub(clients), new IcoFromFilesStub(wr));
+        List<Client> updated = evaluator.evaluateMatches("ignored.xlsx", "ignoredDir", month, year);
+
+        assertEquals(1, updated.size());
+        assertTrue(updated.get(0).reportGenerated());
+    }
+
+    @Test
+    void evaluateMatches_currentYearOverload_usesNowYear() throws Exception {
+        int currentYear = LocalDate.now().getYear();
+        CzechMonth targetMonth = CzechMonth.LISTOPAD; // arbitrary month
+        List<Client> clients = List.of(
+                new Client("One", "11111111", false),
+                new Client("Two", "22222222", false)
+        );
+
+        List<ParsedFileName> parsed = List.of(
+                new ParsedFileName("11111111", LocalDate.of(currentYear, targetMonth.getMonthNumber(), 5)), // match
+                new ParsedFileName("22222222", LocalDate.of(currentYear - 1, targetMonth.getMonthNumber(), 5)) // different year -> no match
+        );
+
+        MatchEvaluator evaluator = new MatchEvaluator(
+                new ExcelWorkerStub(clients),
+                new IcoFromFilesStub(new WalkerResult(parsed, List.of()))
+        );
+
+        List<Client> updated = evaluator.evaluateMatches("ignored.xlsx", "ignoredDir", targetMonth);
+        assertEquals(2, updated.size());
+        assertTrue(updated.get(0).reportGenerated());
+        assertFalse(updated.get(1).reportGenerated());
+    }
+}
