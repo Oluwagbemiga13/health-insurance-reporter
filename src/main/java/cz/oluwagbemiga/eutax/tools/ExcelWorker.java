@@ -160,16 +160,17 @@ public class ExcelWorker implements SpreadsheetReader {
             throw new FileNotFoundException("File not found: " + filePath);
         }
 
-        // Create a map for quick lookup by ICO
+        // Create a map for quick lookup by ICO - only include clients with reportGenerated = true
         Map<String, Boolean> icoToReportGenerated = clients.stream()
+                .filter(Client::reportGenerated)
                 .collect(Collectors.toMap(
                         Client::ico,
                         Client::reportGenerated,
-                        (existing, replacement) -> replacement // In case of duplicate ICOs, use the latest value
+                        (existing, replacement) -> replacement
                 ));
 
         try (FileInputStream fis = new FileInputStream(file);
-             Workbook workbook = new XSSFWorkbook(fis)) {
+             XSSFWorkbook workbook = new XSSFWorkbook(fis)) {
 
             // Find the sheet with the month name
             Sheet sheet = workbook.getSheet(month.getCzechName());
@@ -196,23 +197,27 @@ public class ExcelWorker implements SpreadsheetReader {
                 if (ico != null && !ico.trim().isEmpty() && icoToReportGenerated.containsKey(ico.trim())) {
                     // Column G (index 6): Report Generated
                     Cell reportGeneratedCell = row.getCell(6);
+
                     if (reportGeneratedCell == null) {
                         reportGeneratedCell = row.createCell(6);
                     }
 
-                    boolean newValue = icoToReportGenerated.get(ico.trim());
-                    reportGeneratedCell.setCellValue(newValue);
+                    reportGeneratedCell.setCellValue(true);
                     updatedCount++;
-                    log.debug("Updated ICO '{}' reportGenerated to: {}", ico.trim(), newValue);
+                    log.debug("Updated ICO '{}' reportGenerated to: true", ico.trim());
                 }
             }
 
-            // Write the changes back to the file
-            try (FileOutputStream fos = new FileOutputStream(file)) {
-                workbook.write(fos);
-            }
+            if (updatedCount > 0) {
+                log.info("Successfully updated {} clients in sheet '{}'", updatedCount, month.getCzechName());
 
-            log.info("Successfully updated {} clients in sheet '{}'", updatedCount, month.getCzechName());
+                // Write the changes back to the file
+                try (FileOutputStream fos = new FileOutputStream(file)) {
+                    workbook.write(fos);
+                }
+            } else {
+                log.info("No clients needed updating in sheet '{}'", month.getCzechName());
+            }
 
         } catch (IOException e) {
             log.error("Error updating Excel file: {}", filePath, e);

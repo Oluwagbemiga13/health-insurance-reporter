@@ -115,32 +115,33 @@ class ExcelWorkerTest {
         List<Client> originalClients = excelWorker.readClients(filePath, CzechMonth.UNOR);
         assertEquals(3, originalClients.size());
 
-        // Create updated clients with changed reportGenerated values
+        // Create updated clients - note: method only sets values TO true, never to false
+        // So clients with reportGenerated=false in the list will be ignored
         List<Client> updatedClients = List.of(
-                new Client("Klient A s.r.o", "00000001", false),  // Changed from true to false
-                new Client("Klient 2 s.r.o", "00000002", false),  // Changed from true to false
-                new Client("Další klient a.s.", "00000003", true) // Changed from true to true (or false to true)
+                new Client("Klient A s.r.o", "00000001", true),   // Already true, should stay true
+                new Client("Klient 2 s.r.o", "00000002", true),   // Already true, should stay true
+                new Client("Další klient a.s.", "00000003", true) // Already true, should stay true
         );
 
         // Update the file
         excelWorker.updateReportGeneratedStatus(filePath, updatedClients, CzechMonth.UNOR);
 
-        // Read the clients again and verify the changes
+        // Read the clients again and verify the values (all should remain true)
         List<Client> clientsAfterUpdate = excelWorker.readClients(filePath, CzechMonth.UNOR);
         assertEquals(3, clientsAfterUpdate.size());
 
-        // Assert the updated values
+        // Assert all values are true (method never sets to false)
         assertEquals("Klient A s.r.o", clientsAfterUpdate.get(0).name());
         assertEquals("00000001", clientsAfterUpdate.get(0).ico());
-        assertFalse(clientsAfterUpdate.get(0).reportGenerated(), "First client should be updated to false");
+        assertTrue(clientsAfterUpdate.get(0).reportGenerated(), "First client should remain true");
 
         assertEquals("Klient 2 s.r.o", clientsAfterUpdate.get(1).name());
         assertEquals("00000002", clientsAfterUpdate.get(1).ico());
-        assertFalse(clientsAfterUpdate.get(1).reportGenerated(), "Second client should be updated to false");
+        assertTrue(clientsAfterUpdate.get(1).reportGenerated(), "Second client should remain true");
 
         assertEquals("Další klient a.s.", clientsAfterUpdate.get(2).name());
         assertEquals("00000003", clientsAfterUpdate.get(2).ico());
-        assertTrue(clientsAfterUpdate.get(2).reportGenerated(), "Third client should be updated to true");
+        assertTrue(clientsAfterUpdate.get(2).reportGenerated(), "Third client should remain true");
     }
 
     @Test
@@ -154,24 +155,60 @@ class ExcelWorkerTest {
         ExcelWorker excelWorker = new ExcelWorker();
         String filePath = tempFile.toString();
 
-        // Only update one client - others should remain unchanged
+        // Only update one client with reportGenerated=true
+        // Note: method ignores clients with reportGenerated=false
         List<Client> partialUpdate = List.of(
-                new Client("Klient A s.r.o", "00000001", false)
+                new Client("Klient A s.r.o", "00000001", true)
         );
 
         // Update the file
         excelWorker.updateReportGeneratedStatus(filePath, partialUpdate, CzechMonth.UNOR);
 
-        // Read the clients and verify only the specified client was updated
+        // Read the clients and verify values
         List<Client> clientsAfterUpdate = excelWorker.readClients(filePath, CzechMonth.UNOR);
         assertEquals(3, clientsAfterUpdate.size());
 
-        // First client should be updated
-        assertFalse(clientsAfterUpdate.get(0).reportGenerated(), "First client should be updated to false");
+        // First client should remain true (was already true)
+        assertTrue(clientsAfterUpdate.get(0).reportGenerated(), "First client should remain true");
 
         // Other clients should remain unchanged (original values from UNOR sheet)
         assertTrue(clientsAfterUpdate.get(1).reportGenerated(), "Second client should remain unchanged");
         assertTrue(clientsAfterUpdate.get(2).reportGenerated(), "Third client should remain unchanged");
+    }
+
+    @Test
+    @SneakyThrows
+    void testUpdateReportGeneratedStatus_SetFalseToTrue(@TempDir Path tempDir) {
+        // Copy the test file to temp directory
+        Path originalFile = Path.of("src/test/resources/Zdrav. pojišťovny.xlsx");
+        Path tempFile = tempDir.resolve("test_set_to_true.xlsx");
+        Files.copy(originalFile, tempFile, StandardCopyOption.REPLACE_EXISTING);
+
+        ExcelWorker excelWorker = new ExcelWorker();
+        String filePath = tempFile.toString();
+
+        // Read original values from LEDEN sheet (third client has reportGenerated=false)
+        List<Client> originalClients = excelWorker.readClients(filePath, CzechMonth.LEDEN);
+        assertEquals(3, originalClients.size());
+        assertFalse(originalClients.get(2).reportGenerated(), "Third client should start as false");
+
+        // Update third client to true
+        List<Client> updateClients = List.of(
+                new Client("Další klient a.s.", "00000003", true)
+        );
+
+        // Update the file
+        excelWorker.updateReportGeneratedStatus(filePath, updateClients, CzechMonth.LEDEN);
+
+        // Read the clients again and verify the third client is now true
+        List<Client> clientsAfterUpdate = excelWorker.readClients(filePath, CzechMonth.LEDEN);
+        assertEquals(3, clientsAfterUpdate.size());
+
+        // First two should remain unchanged
+        assertTrue(clientsAfterUpdate.get(0).reportGenerated(), "First client should remain true");
+        assertTrue(clientsAfterUpdate.get(1).reportGenerated(), "Second client should remain true");
+        // Third client should now be true
+        assertTrue(clientsAfterUpdate.get(2).reportGenerated(), "Third client should be updated to true");
     }
 
     @Test
