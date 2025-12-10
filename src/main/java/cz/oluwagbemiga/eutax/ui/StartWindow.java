@@ -17,52 +17,82 @@ public class StartWindow extends JFrame {
         setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
-        JPanel root = new JPanel(new GridBagLayout());
-        root.setBackground(new Color(245, 247, 250));
+        // Main background panel
+        JPanel root = UiTheme.createBackgroundPanel();
+        root.setLayout(new GridBagLayout());
 
-        JPanel card = new JPanel(new GridBagLayout());
-        card.setBorder(new EmptyBorder(24, 32, 24, 32));
-        card.setBackground(Color.WHITE);
+        // Card panel with content
+        JPanel card = UiTheme.createCardPanel();
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setBorder(new EmptyBorder(UiTheme.SPACING_XL, UiTheme.SPACING_XL + 16, UiTheme.SPACING_XL, UiTheme.SPACING_XL + 16));
 
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        gbc.anchor = GridBagConstraints.CENTER;
-        gbc.insets = new Insets(0, 0, 16, 0);
+        // Icon/Logo area (optional visual enhancement)
+        JPanel headerPanel = new JPanel();
+        headerPanel.setOpaque(false);
+        headerPanel.setLayout(new BoxLayout(headerPanel, BoxLayout.Y_AXIS));
+        headerPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
+        // Health/Document icon using a styled box
+        JLabel iconLabel = new JLabel("\uD83D\uDDCE"); // Medical symbol (caduceus)
+        iconLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 42));
+        iconLabel.setForeground(UiTheme.PRIMARY);
+        iconLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        headerPanel.add(iconLabel);
+        headerPanel.add(Box.createVerticalStrut(UiTheme.SPACING_MD));
+
+        card.add(headerPanel);
+
+        // Title
         JLabel title = new JLabel("Kontrola přehledů zdravotního pojištění");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 24f));
-        card.add(title, gbc);
+        title.setFont(UiTheme.FONT_TITLE);
+        title.setForeground(UiTheme.TEXT_PRIMARY);
+        title.setAlignmentX(Component.CENTER_ALIGNMENT);
+        card.add(title);
+        card.add(Box.createVerticalStrut(UiTheme.SPACING_SM));
 
-        gbc.gridy++;
-        JLabel subtitle = new JLabel("Snadno kontrolujte reporty pro zdravotní pojištění.");
-        subtitle.setFont(subtitle.getFont().deriveFont(Font.PLAIN, 14f));
-        SubtitleWrap.wrap(subtitle, 400);
-        gbc.insets = new Insets(0, 0, 24, 0);
-        card.add(subtitle, gbc);
+        // Subtitle
+        JLabel subtitle = new JLabel("<html><div style='text-align: center; width: 350px;'>Snadno kontrolujte a spravujte reporty pro zdravotní pojištění vašich klientů.</div></html>");
+        subtitle.setFont(UiTheme.FONT_SUBTITLE);
+        subtitle.setForeground(UiTheme.TEXT_SECONDARY);
+        subtitle.setAlignmentX(Component.CENTER_ALIGNMENT);
+        card.add(subtitle);
+        card.add(Box.createVerticalStrut(UiTheme.SPACING_XL));
 
-        gbc.gridy++;
-        gbc.insets = new Insets(0, 0, 12, 0);
-        JButton newReportBtn = new JButton("Nová kontrola");
+        // Separator
+        JSeparator separator = new JSeparator();
+        separator.setForeground(UiTheme.BORDER_COLOR);
+        separator.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
+        card.add(separator);
+        card.add(Box.createVerticalStrut(UiTheme.SPACING_LG));
+
+        // Buttons panel
+        JPanel buttonsPanel = new JPanel();
+        buttonsPanel.setOpaque(false);
+        buttonsPanel.setLayout(new BoxLayout(buttonsPanel, BoxLayout.Y_AXIS));
+        buttonsPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        // New Report button (primary)
+        JButton newReportBtn = UiTheme.createPrimaryButton("Nová kontrola");
+        newReportBtn.setMaximumSize(new Dimension(280, 44));
+        newReportBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
         newReportBtn.addActionListener(e -> openSourcesSelectionWindow());
-        card.add(newReportBtn, gbc);
+        buttonsPanel.add(newReportBtn);
+        buttonsPanel.add(Box.createVerticalStrut(UiTheme.SPACING_MD));
 
-        gbc.gridy++;
-        JButton openReportBtn = new JButton("Otevřít existující kontrolu <JE TO POTŘEBNÉ?> ");
-        card.add(openReportBtn, gbc);
+        card.add(buttonsPanel);
 
-        gbc.gridy++;
-        JButton settingsBtn = new JButton("Nastavení <JE TO POTŘEBNÉ?> ");
-        card.add(settingsBtn, gbc);
+        // Footer with version
+        card.add(Box.createVerticalStrut(UiTheme.SPACING_XL));
+        JLabel versionLabel = new JLabel("v1.0");
+        versionLabel.setFont(UiTheme.FONT_SMALL);
+        versionLabel.setForeground(UiTheme.TEXT_SECONDARY);
+        versionLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        card.add(versionLabel);
 
-        gbc = new GridBagConstraints();
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        gbc.insets = new Insets(40, 40, 40, 40);
-        root.add(card, gbc);
-
+        root.add(card);
         add(root, BorderLayout.CENTER);
-        setPreferredSize(new Dimension(700, 400));
+
+        setPreferredSize(new Dimension(550, 420));
         pack();
         setLocationRelativeTo(null);
         setVisible(true);
@@ -74,22 +104,5 @@ public class StartWindow extends JFrame {
             dispose();
         });
     }
-
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(StartWindow::new);
-    }
 }
 
-// Utility class to wrap JLabel text within a given width using simple HTML.
-class SubtitleWrap {
-
-    private SubtitleWrap() {
-        throw new IllegalStateException("Utility class");
-    }
-
-    static void wrap(JLabel label, int widthPx) {
-        String text = label.getText();
-        label.setText(String.format("<html><div style='width:%dpx;'>%s</div></html>", widthPx, text));
-        label.setVerticalAlignment(SwingConstants.TOP);
-    }
-}

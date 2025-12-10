@@ -34,31 +34,26 @@ public final class KeystoreWizardWindow extends JDialog {
 
     private final CardLayout cardLayout = new CardLayout();
     private final JPanel cardPanel = new JPanel(cardLayout);
-    private final JButton backButton = new JButton("Zpět");
-    private final JButton nextButton = new JButton("Další");
-    private final JButton cancelButton = new JButton("Zrušit");
+    private JButton backButton;
+    private JButton nextButton;
+    private JButton cancelButton;
+
+    // Step indicators
+    private JPanel stepIndicatorPanel;
 
     // Step 1: File selection components
-    private final JTextField filePathField = new JTextField(30);
-    private final JLabel fileErrorLabel = new JLabel(" ");
+    private final JTextField filePathField = UiTheme.createTextField();
+    private final JLabel fileErrorLabel = UiTheme.createErrorLabel();
 
     // Step 2: Password components
-    private final JPasswordField passwordField = new JPasswordField(20);
-    private final JPasswordField confirmPasswordField = new JPasswordField(20);
-    private final JLabel passwordErrorLabel = new JLabel(" ");
+    private final JPasswordField passwordField = UiTheme.createPasswordField();
+    private final JPasswordField confirmPasswordField = UiTheme.createPasswordField();
+    private final JLabel passwordErrorLabel = UiTheme.createErrorLabel();
 
     // Step 3: Result components
     private final JLabel resultLabel = new JLabel(" ");
     private final JLabel resultDetailLabel = new JLabel(" ");
 
-    /**
-     * Creates a new keystore wizard window.
-     *
-     * @param owner     the parent frame
-     * @param onSuccess callback when keystore is successfully created
-     * @param onCancel  callback when user cancels the wizard
-     * @param isRecreate true if recreating an existing keystore
-     */
     public KeystoreWizardWindow(Frame owner, Runnable onSuccess, Runnable onCancel, boolean isRecreate) {
         super(owner, isRecreate ? "Obnovení úložiště klíčů" : "Vytvoření úložiště klíčů", true);
         this.onSuccess = Objects.requireNonNull(onSuccess, "onSuccess");
@@ -84,195 +79,308 @@ public final class KeystoreWizardWindow extends JDialog {
     }
 
     private void buildUi() {
-        JPanel content = new JPanel(new BorderLayout());
-        content.setBorder(new EmptyBorder(16, 24, 16, 24));
+        JPanel root = UiTheme.createBackgroundPanel();
+        root.setLayout(new BorderLayout());
+        root.setBorder(UiTheme.createContentBorder());
 
+        // Step indicator at top
+        stepIndicatorPanel = createStepIndicator();
+        root.add(stepIndicatorPanel, BorderLayout.NORTH);
+
+        // Card panel for wizard steps
+        cardPanel.setOpaque(false);
         cardPanel.add(buildWelcomePanel(), String.valueOf(STEP_WELCOME));
         cardPanel.add(buildFileSelectionPanel(), String.valueOf(STEP_SELECT_FILE));
         cardPanel.add(buildPasswordPanel(), String.valueOf(STEP_SET_PASSWORD));
         cardPanel.add(buildResultPanel(), String.valueOf(STEP_RESULT));
 
-        content.add(cardPanel, BorderLayout.CENTER);
-        content.add(buildButtonPanel(), BorderLayout.SOUTH);
+        root.add(cardPanel, BorderLayout.CENTER);
+        root.add(buildButtonPanel(), BorderLayout.SOUTH);
 
-        setContentPane(content);
-        setMinimumSize(new Dimension(500, 350));
+        setContentPane(root);
+        setMinimumSize(new Dimension(520, 420));
         updateButtons();
+        updateStepIndicator();
+    }
+
+    private JPanel createStepIndicator() {
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.CENTER, UiTheme.SPACING_LG, 0));
+        panel.setOpaque(false);
+        panel.setBorder(new EmptyBorder(0, 0, UiTheme.SPACING_LG, 0));
+
+        String[] steps = {"Úvod", "Soubor", "Heslo", "Hotovo"};
+        for (int i = 0; i < steps.length; i++) {
+            JPanel stepPanel = new JPanel();
+            stepPanel.setOpaque(false);
+            stepPanel.setLayout(new BoxLayout(stepPanel, BoxLayout.Y_AXIS));
+
+            JLabel numberLabel = new JLabel(String.valueOf(i + 1), SwingConstants.CENTER);
+            numberLabel.setOpaque(true);
+            numberLabel.setPreferredSize(new Dimension(28, 28));
+            numberLabel.setMinimumSize(new Dimension(28, 28));
+            numberLabel.setMaximumSize(new Dimension(28, 28));
+            numberLabel.setHorizontalAlignment(SwingConstants.CENTER);
+            numberLabel.setFont(UiTheme.FONT_BODY.deriveFont(Font.BOLD));
+            numberLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+            numberLabel.setName("step-" + i);
+
+            JLabel textLabel = new JLabel(steps[i]);
+            textLabel.setFont(UiTheme.FONT_SMALL);
+            textLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+            textLabel.setName("step-text-" + i);
+
+            stepPanel.add(numberLabel);
+            stepPanel.add(Box.createVerticalStrut(UiTheme.SPACING_XS));
+            stepPanel.add(textLabel);
+
+            panel.add(stepPanel);
+
+            if (i < steps.length - 1) {
+                JLabel arrow = new JLabel("→");
+                arrow.setFont(UiTheme.FONT_BODY);
+                arrow.setForeground(UiTheme.TEXT_SECONDARY);
+                panel.add(arrow);
+            }
+        }
+
+        return panel;
+    }
+
+    private void updateStepIndicator() {
+        for (Component comp : stepIndicatorPanel.getComponents()) {
+            if (comp instanceof JPanel stepPanel) {
+                for (Component inner : stepPanel.getComponents()) {
+                    if (inner instanceof JLabel label && label.getName() != null) {
+                        if (label.getName().startsWith("step-text-")) {
+                            int stepIndex = Integer.parseInt(label.getName().replace("step-text-", ""));
+                            label.setForeground(stepIndex <= currentStep ? UiTheme.PRIMARY : UiTheme.TEXT_SECONDARY);
+                        } else if (label.getName().startsWith("step-")) {
+                            int stepIndex = Integer.parseInt(label.getName().replace("step-", ""));
+                            if (stepIndex < currentStep) {
+                                label.setBackground(UiTheme.SUCCESS);
+                                label.setForeground(UiTheme.TEXT_LIGHT);
+                                label.setText("OK");
+                            } else if (stepIndex == currentStep) {
+                                label.setBackground(UiTheme.PRIMARY);
+                                label.setForeground(UiTheme.TEXT_LIGHT);
+                                label.setText(String.valueOf(stepIndex + 1));
+                            } else {
+                                label.setBackground(UiTheme.BG_SECONDARY);
+                                label.setForeground(UiTheme.TEXT_SECONDARY);
+                                label.setText(String.valueOf(stepIndex + 1));
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private JPanel buildWelcomePanel() {
-        JPanel panel = new JPanel(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        gbc.anchor = GridBagConstraints.CENTER;
-        gbc.insets = new Insets(0, 0, 16, 0);
+        JPanel panel = UiTheme.createCardPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
 
+        // Icon - using a styled panel with text
+        JPanel iconPanel = createIconPanel("1");
+        panel.add(iconPanel);
+        panel.add(Box.createVerticalStrut(UiTheme.SPACING_MD));
+
+        // Title
         JLabel title = new JLabel(isRecreate ? "Obnovení úložiště klíčů" : "Vítejte v průvodci nastavením");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
-        panel.add(title, gbc);
+        title.setFont(UiTheme.FONT_TITLE);
+        title.setForeground(UiTheme.TEXT_PRIMARY);
+        title.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(title);
+        panel.add(Box.createVerticalStrut(UiTheme.SPACING_MD));
 
-        gbc.gridy++;
-        gbc.insets = new Insets(0, 0, 24, 0);
+        // Description
         String descText = isRecreate
-                ? "<html><div style='width:380px; text-align:center;'>"
-                  + "Tento průvodce vám pomůže vytvořit nové úložiště klíčů. "
-                  + "Budete potřebovat JSON soubor s přihlašovacími údaji ke Google účtu služby."
-                  + "</div></html>"
-                : "<html><div style='width:380px; text-align:center;'>"
-                  + "Pro spuštění aplikace je potřeba vytvořit zabezpečené úložiště klíčů. "
-                  + "Budete potřebovat JSON soubor s přihlašovacími údaji ke Google účtu služby."
-                  + "</div></html>";
-        JLabel desc = new JLabel(descText);
-        desc.setFont(desc.getFont().deriveFont(Font.PLAIN, 13f));
-        panel.add(desc, gbc);
+                ? "Tento průvodce vám pomůže vytvořit nové úložiště klíčů. Budete potřebovat JSON soubor s přihlašovacími údaji ke Google účtu služby."
+                : "Pro spuštění aplikace je potřeba vytvořit zabezpečené úložiště klíčů. Budete potřebovat JSON soubor s přihlašovacími údaji ke Google účtu služby.";
+        JLabel desc = new JLabel("<html><div style='text-align: center; width: 350px;'>" + descText + "</div></html>");
+        desc.setFont(UiTheme.FONT_BODY);
+        desc.setForeground(UiTheme.TEXT_SECONDARY);
+        desc.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(desc);
+        panel.add(Box.createVerticalStrut(UiTheme.SPACING_LG));
 
-        gbc.gridy++;
-        JLabel stepInfo = new JLabel("<html><div style='width:380px;'><b>Kroky:</b><ol>"
-                + "<li>Vyberte JSON soubor s přihlašovacími údaji</li>"
-                + "<li>Nastavte heslo pro ochranu úložiště</li>"
-                + "<li>Dokončete vytvoření</li></ol></div></html>");
-        stepInfo.setFont(stepInfo.getFont().deriveFont(Font.PLAIN, 12f));
-        panel.add(stepInfo, gbc);
+        // Steps info
+        JPanel stepsInfo = new JPanel();
+        stepsInfo.setOpaque(false);
+        stepsInfo.setLayout(new BoxLayout(stepsInfo, BoxLayout.Y_AXIS));
+        stepsInfo.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        String[] steps = {
+            "1. Vyberte JSON soubor s přihlašovacími údaji",
+            "2. Nastavte heslo pro ochranu úložiště",
+            "3. Dokončete vytvoření"
+        };
+        for (String step : steps) {
+            JLabel stepLabel = new JLabel("  " + step);
+            stepLabel.setFont(UiTheme.FONT_BODY);
+            stepLabel.setForeground(UiTheme.TEXT_PRIMARY);
+            stepLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            stepsInfo.add(stepLabel);
+            stepsInfo.add(Box.createVerticalStrut(UiTheme.SPACING_XS));
+        }
+        panel.add(stepsInfo);
 
         return panel;
     }
 
     private JPanel buildFileSelectionPanel() {
-        JPanel panel = new JPanel(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        gbc.gridwidth = 2;
-        gbc.anchor = GridBagConstraints.WEST;
-        gbc.insets = new Insets(0, 0, 16, 0);
+        JPanel panel = UiTheme.createCardPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
 
+        // Icon - using a styled panel with text
+        JPanel iconPanel = createIconPanel("2");
+        panel.add(iconPanel);
+        panel.add(Box.createVerticalStrut(UiTheme.SPACING_SM));
+
+        // Title
         JLabel title = new JLabel("Vyberte JSON soubor");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));
-        panel.add(title, gbc);
+        title.setFont(UiTheme.FONT_TITLE);
+        title.setForeground(UiTheme.TEXT_PRIMARY);
+        title.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(title);
+        panel.add(Box.createVerticalStrut(UiTheme.SPACING_SM));
 
-        gbc.gridy++;
-        gbc.insets = new Insets(0, 0, 8, 0);
-        JLabel desc = new JLabel("<html><div style='width:380px;'>"
-                + "Vyberte JSON soubor s přihlašovacími údaji ke Google účtu služby. "
-                + "Tento soubor jste obdrželi při vytváření účtu služby v Google Cloud Console."
-                + "</div></html>");
-        desc.setFont(desc.getFont().deriveFont(Font.PLAIN, 12f));
-        panel.add(desc, gbc);
+        // Description
+        JLabel desc = new JLabel("<html><div style='text-align: center; width: 380px;'>Vyberte JSON soubor s přihlašovacími údaji ke Google účtu služby. Tento soubor jste obdrželi při vytváření účtu služby v Google Cloud Console.</div></html>");
+        desc.setFont(UiTheme.FONT_BODY);
+        desc.setForeground(UiTheme.TEXT_SECONDARY);
+        desc.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(desc);
+        panel.add(Box.createVerticalStrut(UiTheme.SPACING_LG));
 
-        gbc.gridy++;
-        gbc.gridwidth = 1;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.weightx = 1;
-        gbc.insets = new Insets(16, 0, 8, 8);
+        // File picker
+        JPanel pickerPanel = new JPanel(new BorderLayout(UiTheme.SPACING_SM, 0));
+        pickerPanel.setOpaque(false);
+        pickerPanel.setMaximumSize(new Dimension(400, 40));
+        pickerPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
         filePathField.setEditable(false);
-        panel.add(filePathField, gbc);
+        pickerPanel.add(filePathField, BorderLayout.CENTER);
 
-        gbc.gridx = 1;
-        gbc.weightx = 0;
-        gbc.fill = GridBagConstraints.NONE;
-        gbc.insets = new Insets(16, 0, 8, 0);
-        JButton browseButton = new JButton("Procházet...");
+        JButton browseButton = UiTheme.createSecondaryButton("Procházet...");
         browseButton.addActionListener(e -> selectJsonFile());
-        panel.add(browseButton, gbc);
+        pickerPanel.add(browseButton, BorderLayout.EAST);
 
-        gbc.gridx = 0;
-        gbc.gridy++;
-        gbc.gridwidth = 2;
-        gbc.insets = new Insets(8, 0, 0, 0);
-        fileErrorLabel.setForeground(new Color(176, 0, 32));
-        panel.add(fileErrorLabel, gbc);
+        panel.add(pickerPanel);
+        panel.add(Box.createVerticalStrut(UiTheme.SPACING_SM));
+
+        // Error label
+        fileErrorLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(fileErrorLabel);
 
         return panel;
     }
 
     private JPanel buildPasswordPanel() {
-        JPanel panel = new JPanel(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        gbc.gridwidth = 2;
-        gbc.anchor = GridBagConstraints.WEST;
-        gbc.insets = new Insets(0, 0, 16, 0);
+        JPanel panel = UiTheme.createCardPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
 
+        // Icon - using a styled panel with text
+        JPanel iconPanel = createIconPanel("3");
+        panel.add(iconPanel);
+        panel.add(Box.createVerticalStrut(UiTheme.SPACING_SM));
+
+        // Title
         JLabel title = new JLabel("Nastavte heslo");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));
-        panel.add(title, gbc);
+        title.setFont(UiTheme.FONT_TITLE);
+        title.setForeground(UiTheme.TEXT_PRIMARY);
+        title.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(title);
+        panel.add(Box.createVerticalStrut(UiTheme.SPACING_SM));
 
-        gbc.gridy++;
-        gbc.insets = new Insets(0, 0, 16, 0);
-        JLabel desc = new JLabel("<html><div style='width:380px;'>"
-                + "Zvolte silné heslo pro ochranu vašeho úložiště klíčů. "
-                + "Toto heslo budete zadávat při každém spuštění aplikace."
-                + "</div></html>");
-        desc.setFont(desc.getFont().deriveFont(Font.PLAIN, 12f));
-        panel.add(desc, gbc);
+        // Description
+        JLabel desc = new JLabel("<html><div style='text-align: center; width: 380px;'>Zvolte silné heslo pro ochranu vašeho úložiště klíčů. Toto heslo budete zadávat při každém spuštění aplikace.</div></html>");
+        desc.setFont(UiTheme.FONT_BODY);
+        desc.setForeground(UiTheme.TEXT_SECONDARY);
+        desc.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(desc);
+        panel.add(Box.createVerticalStrut(UiTheme.SPACING_LG));
 
-        gbc.gridy++;
-        gbc.gridwidth = 1;
-        gbc.insets = new Insets(8, 0, 4, 8);
-        panel.add(new JLabel("Heslo:"), gbc);
+        // Form panel
+        JPanel formPanel = new JPanel(new GridBagLayout());
+        formPanel.setOpaque(false);
+        formPanel.setMaximumSize(new Dimension(350, 120));
+        formPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        gbc.gridx = 1;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.weightx = 1;
-        gbc.insets = new Insets(8, 0, 4, 0);
-        panel.add(passwordField, gbc);
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(UiTheme.SPACING_XS, 0, UiTheme.SPACING_XS, UiTheme.SPACING_SM);
+        gbc.anchor = GridBagConstraints.WEST;
 
-        gbc.gridx = 0;
-        gbc.gridy++;
-        gbc.fill = GridBagConstraints.NONE;
-        gbc.weightx = 0;
-        gbc.insets = new Insets(4, 0, 4, 8);
-        panel.add(new JLabel("Potvrzení hesla:"), gbc);
+        gbc.gridx = 0; gbc.gridy = 0;
+        JLabel passLabel = new JLabel("Heslo:");
+        passLabel.setFont(UiTheme.FONT_BODY);
+        formPanel.add(passLabel, gbc);
 
-        gbc.gridx = 1;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.weightx = 1;
-        gbc.insets = new Insets(4, 0, 4, 0);
-        panel.add(confirmPasswordField, gbc);
+        gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1;
+        formPanel.add(passwordField, gbc);
 
-        gbc.gridx = 0;
-        gbc.gridy++;
-        gbc.gridwidth = 2;
-        gbc.insets = new Insets(16, 0, 0, 0);
-        passwordErrorLabel.setForeground(new Color(176, 0, 32));
-        panel.add(passwordErrorLabel, gbc);
+        gbc.gridx = 0; gbc.gridy = 1; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
+        JLabel confirmLabel = new JLabel("Potvrzení:");
+        confirmLabel.setFont(UiTheme.FONT_BODY);
+        formPanel.add(confirmLabel, gbc);
+
+        gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1;
+        formPanel.add(confirmPasswordField, gbc);
+
+        panel.add(formPanel);
+        panel.add(Box.createVerticalStrut(UiTheme.SPACING_SM));
+
+        // Error label
+        passwordErrorLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(passwordErrorLabel);
 
         return panel;
     }
 
     private JPanel buildResultPanel() {
-        JPanel panel = new JPanel(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        gbc.anchor = GridBagConstraints.CENTER;
-        gbc.insets = new Insets(0, 0, 16, 0);
+        JPanel panel = UiTheme.createCardPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
 
-        resultLabel.setFont(resultLabel.getFont().deriveFont(Font.BOLD, 18f));
-        panel.add(resultLabel, gbc);
+        // Result icon (will be updated dynamically) - using styled panel
+        JPanel iconPanel = createIconPanel("4");
+        iconPanel.setName("result-icon-panel");
+        panel.add(iconPanel);
+        panel.add(Box.createVerticalStrut(UiTheme.SPACING_MD));
 
-        gbc.gridy++;
-        gbc.insets = new Insets(0, 0, 8, 0);
-        resultDetailLabel.setFont(resultDetailLabel.getFont().deriveFont(Font.PLAIN, 12f));
-        panel.add(resultDetailLabel, gbc);
+        // Result label
+        resultLabel.setFont(UiTheme.FONT_TITLE);
+        resultLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(resultLabel);
+        panel.add(Box.createVerticalStrut(UiTheme.SPACING_SM));
+
+        // Detail label
+        resultDetailLabel.setFont(UiTheme.FONT_BODY);
+        resultDetailLabel.setForeground(UiTheme.TEXT_SECONDARY);
+        resultDetailLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(resultDetailLabel);
 
         return panel;
     }
 
     private JPanel buildButtonPanel() {
         JPanel panel = new JPanel(new BorderLayout());
-        panel.setBorder(new EmptyBorder(16, 0, 0, 0));
+        panel.setOpaque(false);
+        panel.setBorder(new EmptyBorder(UiTheme.SPACING_LG, 0, 0, 0));
 
-        JPanel leftPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel leftPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        leftPanel.setOpaque(false);
+        cancelButton = UiTheme.createSecondaryButton("Zrušit");
         cancelButton.addActionListener(e -> handleCancel());
         leftPanel.add(cancelButton);
 
-        JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, UiTheme.SPACING_SM, 0));
+        rightPanel.setOpaque(false);
+
+        backButton = UiTheme.createSecondaryButton("Zpět");
         backButton.addActionListener(e -> goBack());
         rightPanel.add(backButton);
 
+        nextButton = UiTheme.createPrimaryButton("Další");
         nextButton.addActionListener(e -> goNext());
         rightPanel.add(nextButton);
 
@@ -300,6 +408,7 @@ public final class KeystoreWizardWindow extends JDialog {
             currentStep--;
             cardLayout.show(cardPanel, String.valueOf(currentStep));
             updateButtons();
+            updateStepIndicator();
         }
     }
 
@@ -326,6 +435,7 @@ public final class KeystoreWizardWindow extends JDialog {
             }
         }
         updateButtons();
+        updateStepIndicator();
     }
 
     private void selectJsonFile() {
@@ -391,9 +501,7 @@ public final class KeystoreWizardWindow extends JDialog {
                 try {
                     File outputFile = SecretsRepository.getExternalKeystoreFile();
 
-                    // Check if file exists and warn user
                     if (outputFile.exists() && isRecreate) {
-                        // In recreate mode, we proceed with overwriting
                         log.info("Overwriting existing keystore at: {}", outputFile.getAbsolutePath());
                     }
 
@@ -415,23 +523,40 @@ public final class KeystoreWizardWindow extends JDialog {
                 clearPasswords(enteredPassword);
                 enteredPassword = null;
 
+                // Update result icon panel color
+                for (Component comp : cardPanel.getComponents()) {
+                    if (comp instanceof JPanel panel) {
+                        for (Component inner : panel.getComponents()) {
+                            if (inner instanceof JPanel iconPanel && "result-icon-panel".equals(iconPanel.getName())) {
+                                Color bgColor = errorMessage != null ? UiTheme.ERROR : UiTheme.SUCCESS;
+                                iconPanel.setBackground(bgColor);
+                                iconPanel.setBorder(BorderFactory.createLineBorder(bgColor, 3, true));
+                                for (Component c : iconPanel.getComponents()) {
+                                    if (c instanceof JLabel lbl) {
+                                        lbl.setText(errorMessage != null ? "X" : "OK");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 if (errorMessage != null) {
                     resultLabel.setText("Chyba při vytváření úložiště");
-                    resultLabel.setForeground(new Color(176, 0, 32));
+                    resultLabel.setForeground(UiTheme.ERROR);
                     resultDetailLabel.setText("<html><div style='width:380px; text-align:center;'>" + errorMessage + "</div></html>");
                     backButton.setEnabled(true);
                 } else {
                     resultLabel.setText("Úložiště bylo úspěšně vytvořeno!");
-                    resultLabel.setForeground(new Color(0, 128, 0));
+                    resultLabel.setForeground(UiTheme.SUCCESS);
                     File keystoreFile = SecretsRepository.getExternalKeystoreFile();
-                    resultDetailLabel.setText("<html><div style='width:380px; text-align:center;'>"
-                            + "Soubor: " + keystoreFile.getAbsolutePath()
-                            + "</div></html>");
+                    resultDetailLabel.setText("<html><div style='width:380px; text-align:center;'>Soubor: " + keystoreFile.getAbsolutePath() + "</div></html>");
                 }
 
                 currentStep = STEP_RESULT;
                 cardLayout.show(cardPanel, String.valueOf(currentStep));
                 updateButtons();
+                updateStepIndicator();
                 toggleUi(true);
             }
         };
@@ -439,15 +564,33 @@ public final class KeystoreWizardWindow extends JDialog {
         worker.execute();
     }
 
+    /**
+     * Creates a styled icon panel with a step number for the wizard.
+     */
+    private JPanel createIconPanel(String text) {
+        JPanel iconPanel = new JPanel(new GridBagLayout());
+        iconPanel.setBackground(UiTheme.PRIMARY);
+        iconPanel.setPreferredSize(new Dimension(50, 50));
+        iconPanel.setMaximumSize(new Dimension(50, 50));
+        iconPanel.setMinimumSize(new Dimension(50, 50));
+        iconPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        iconPanel.setBorder(BorderFactory.createLineBorder(UiTheme.PRIMARY, 3, true));
+
+        JLabel label = new JLabel(text, SwingConstants.CENTER);
+        label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 20));
+        label.setForeground(UiTheme.TEXT_LIGHT);
+        iconPanel.add(label);
+
+        return iconPanel;
+    }
+
     private void handleCancel() {
-        int result = JOptionPane.showConfirmDialog(
+        boolean confirmed = UiTheme.showConfirmDialog(
                 this,
                 "Opravdu chcete zrušit průvodce?",
-                "Potvrzení",
-                JOptionPane.YES_NO_OPTION,
-                JOptionPane.QUESTION_MESSAGE
+                "Potvrzení"
         );
-        if (result == JOptionPane.YES_OPTION) {
+        if (confirmed) {
             clearPasswords(enteredPassword, passwordField.getPassword(), confirmPasswordField.getPassword());
             dispose();
             onCancel.run();
@@ -490,14 +633,12 @@ public final class KeystoreWizardWindow extends JDialog {
     public static void showRecreateWizard(Frame owner, Runnable onSuccess) {
         File existingFile = SecretsRepository.getExternalKeystoreFile();
         if (existingFile.exists()) {
-            int confirm = JOptionPane.showConfirmDialog(
+            boolean confirmed = UiTheme.showWarningConfirmDialog(
                     owner,
                     "Existující úložiště klíčů bude přepsáno. Pokračovat?",
-                    "Upozornění",
-                    JOptionPane.YES_NO_OPTION,
-                    JOptionPane.WARNING_MESSAGE
+                    "Upozornění"
             );
-            if (confirm != JOptionPane.YES_OPTION) {
+            if (!confirmed) {
                 return;
             }
         }

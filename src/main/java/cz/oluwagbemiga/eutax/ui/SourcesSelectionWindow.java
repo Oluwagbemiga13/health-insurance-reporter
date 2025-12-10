@@ -20,14 +20,15 @@ public class SourcesSelectionWindow extends JFrame {
     private static final String PREF_SELECTED_MONTH = "selectedMonth";
 
     private final Preferences prefs = Preferences.userNodeForPackage(SourcesSelectionWindow.class);
-    private final JTextField folderField = new JTextField();
-    private final JTextField spreadsheetField = new JTextField();
+    private final JTextField folderField = UiTheme.createTextField();
+    private final JTextField spreadsheetField = UiTheme.createTextField();
     private final JComboBox<CzechMonth> monthComboBox = new JComboBox<>(CzechMonth.values());
-    private final JLabel errorLabel = new JLabel(" ");
-    private final JButton continueButton = new JButton("Pokračovat");
+    private final JLabel errorLabel = UiTheme.createErrorLabel();
+    private JButton continueButton;
     private SpreadsheetSource spreadsheetSource;
 
     public SourcesSelectionWindow() {
+        UiTheme.apply();
         setTitle("Výběr zdrojů");
         setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         AppIconProvider.apply(this);
@@ -52,91 +53,153 @@ public class SourcesSelectionWindow extends JFrame {
     }
 
     private void buildUi() {
-        JPanel content = new JPanel(new BorderLayout());
-        content.setBorder(new EmptyBorder(24, 24, 24, 24));
-        content.add(buildForm(), BorderLayout.CENTER);
-        content.add(buildBottomPanel(), BorderLayout.SOUTH);
-        setContentPane(content);
-        setPreferredSize(new Dimension(650, 430));
+        JPanel root = UiTheme.createBackgroundPanel();
+        root.setLayout(new BorderLayout());
+        root.setBorder(UiTheme.createContentBorder());
+
+        // Header section
+        JPanel headerPanel = new JPanel();
+        headerPanel.setOpaque(false);
+        headerPanel.setLayout(new BoxLayout(headerPanel, BoxLayout.Y_AXIS));
+        headerPanel.setBorder(new EmptyBorder(0, 0, UiTheme.SPACING_MD, 0));
+
+        JLabel titleLabel = new JLabel("Výběr zdrojů");
+        titleLabel.setFont(UiTheme.FONT_TITLE);
+        titleLabel.setForeground(UiTheme.TEXT_PRIMARY);
+        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        headerPanel.add(titleLabel);
+
+        headerPanel.add(Box.createVerticalStrut(UiTheme.SPACING_XS));
+
+        JLabel subtitleLabel = UiTheme.createDescriptionLabel("Vyberte období, složku s reporty a tabulku se seznamem klientů.");
+        subtitleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        headerPanel.add(subtitleLabel);
+
+        root.add(headerPanel, BorderLayout.NORTH);
+
+        // Main form card
+        JPanel formCard = UiTheme.createCardPanel();
+        formCard.setLayout(new BoxLayout(formCard, BoxLayout.Y_AXIS));
+
+        // Month section - FIRST
+        formCard.add(createMonthSectionPanel());
+        formCard.add(Box.createVerticalStrut(UiTheme.SPACING_MD));
+
+        // Folder section - SECOND
+        formCard.add(createSectionPanel("Složka s reporty",
+            "Vyberte složku obsahující PDF reporty zdravotního pojištění.",
+            createPickerPanel(folderField, this::pickFolder)));
+
+        formCard.add(Box.createVerticalStrut(UiTheme.SPACING_MD));
+
+        // Spreadsheet section - THIRD
+        formCard.add(createSectionPanel("Zdroj dat klientů",
+            "Vyberte Excel soubor nebo Google Sheets s údaji klientů.",
+            createPickerPanel(spreadsheetField, this::pickSpreadsheet)));
+
+        formCard.add(Box.createVerticalStrut(UiTheme.SPACING_MD));
+
+        // Error label
+        errorLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        formCard.add(errorLabel);
+
+        root.add(formCard, BorderLayout.CENTER);
+
+        // Bottom buttons panel
+        root.add(buildBottomPanel(), BorderLayout.SOUTH);
+
+        setContentPane(root);
+        setMinimumSize(new Dimension(580, 550));
+        setPreferredSize(new Dimension(620, 600));
+
+        SwingUtilities.invokeLater(this::validateInputs);
     }
 
-    private JPanel buildForm() {
-        JPanel panel = new JPanel(new GridBagLayout());
-        panel.setBackground(Color.WHITE);
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        gbc.anchor = GridBagConstraints.WEST;
-        gbc.insets = new Insets(0, 0, 8, 8);
+    private JPanel createSectionPanel(String title, String description, JPanel contentPanel) {
+        JPanel section = new JPanel();
+        section.setOpaque(false);
+        section.setLayout(new BoxLayout(section, BoxLayout.Y_AXIS));
+        section.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        panel.add(new JLabel("Složka s reporty"), gbc);
-        gbc.gridy++;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.weightx = 1;
-        panel.add(createPickerPanel(folderField, this::pickFolder), gbc);
+        JLabel titleLabel = UiTheme.createSectionHeader(title);
+        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        section.add(titleLabel);
 
-        gbc.gridy++;
-        gbc.insets = new Insets(16, 0, 8, 8);
-        gbc.fill = GridBagConstraints.NONE;
-        gbc.weightx = 0;
-        panel.add(new JLabel("Zdroj tabulky"), gbc);
+        section.add(Box.createVerticalStrut(UiTheme.SPACING_XS));
 
-        gbc.gridy++;
-        panel.add(buildSourceSelector(), gbc);
+        JLabel descLabel = UiTheme.createDescriptionLabel(description);
+        descLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        section.add(descLabel);
 
-        gbc.gridy++;
-        gbc.insets = new Insets(16, 0, 8, 8);
-        panel.add(new JLabel("Měsíc"), gbc);
+        section.add(Box.createVerticalStrut(UiTheme.SPACING_SM));
 
-        gbc.gridy++;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.weightx = 1;
+        contentPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        section.add(contentPanel);
+
+        return section;
+    }
+
+    private JPanel createMonthSectionPanel() {
+        JPanel section = new JPanel();
+        section.setOpaque(false);
+        section.setLayout(new BoxLayout(section, BoxLayout.Y_AXIS));
+        section.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel titleLabel = UiTheme.createSectionHeader("Období kontroly");
+        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        section.add(titleLabel);
+
+        section.add(Box.createVerticalStrut(UiTheme.SPACING_XS));
+
+        JLabel descLabel = UiTheme.createDescriptionLabel("Vyberte měsíc, za který chcete provést kontrolu.");
+        descLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        section.add(descLabel);
+
+        section.add(Box.createVerticalStrut(UiTheme.SPACING_SM));
+
+        UiTheme.styleComboBox(monthComboBox);
+        monthComboBox.setAlignmentX(Component.LEFT_ALIGNMENT);
+        monthComboBox.setMaximumSize(new Dimension(200, 36));
         monthComboBox.addActionListener(e -> {
             savePreferences();
             validateInputs();
         });
-        panel.add(monthComboBox, gbc);
+        section.add(monthComboBox);
 
-        gbc.gridy++;
-        gbc.insets = new Insets(16, 0, 0, 0);
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.weightx = 1;
-        panel.add(errorLabel, gbc);
-        errorLabel.setForeground(new Color(176, 0, 32));
-
-        SwingUtilities.invokeLater(this::validateInputs);
-        return panel;
-    }
-
-    private JPanel buildSourceSelector() {
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setBorder(new EmptyBorder(8, 16, 8, 16));
-        panel.add(new JLabel("Soubor se seznamem klientů"), BorderLayout.NORTH);
-        panel.add(createPickerPanel(spreadsheetField, this::pickSpreadsheet), BorderLayout.CENTER);
-        return panel;
+        return section;
     }
 
     private JPanel createPickerPanel(JTextField field, Runnable picker) {
-        JPanel panel = new JPanel(new BorderLayout(8, 0));
+        JPanel panel = new JPanel(new BorderLayout(UiTheme.SPACING_SM, 0));
+        panel.setOpaque(false);
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+
         field.setEditable(false);
         panel.add(field, BorderLayout.CENTER);
-        JButton browse = new JButton("Vybrat...");
+
+        JButton browse = UiTheme.createSecondaryButton("Vybrat...");
         browse.addActionListener(e -> picker.run());
         panel.add(browse, BorderLayout.EAST);
+
         return panel;
     }
 
     private JPanel buildBottomPanel() {
-        JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        bottom.setBackground(Color.WHITE);
+        JPanel bottom = new JPanel(new BorderLayout());
+        bottom.setOpaque(false);
+        bottom.setBorder(new EmptyBorder(UiTheme.SPACING_LG, 0, 0, 0));
 
-        JButton cancel = new JButton("Zpět");
-        cancel.addActionListener(e -> {
+        JPanel buttonsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, UiTheme.SPACING_SM, 0));
+        buttonsPanel.setOpaque(false);
+
+        JButton cancelBtn = UiTheme.createSecondaryButton("Zpět");
+        cancelBtn.addActionListener(e -> {
             dispose();
             SwingUtilities.invokeLater(StartWindow::new);
         });
-        bottom.add(cancel);
+        buttonsPanel.add(cancelBtn);
 
+        continueButton = UiTheme.createPrimaryButton("Pokračovat");
         continueButton.setEnabled(false);
         continueButton.addActionListener(e -> {
             dispose();
@@ -145,7 +208,9 @@ public class SourcesSelectionWindow extends JFrame {
             CzechMonth month = (CzechMonth) monthComboBox.getSelectedItem();
             SwingUtilities.invokeLater(() -> new ResultsWindow(folder, source, month));
         });
-        bottom.add(continueButton);
+        buttonsPanel.add(continueButton);
+
+        bottom.add(buttonsPanel, BorderLayout.EAST);
         return bottom;
     }
 
