@@ -59,7 +59,6 @@ public final class UiTheme {
     public static final int SPACING_XL = 32;
 
     // ===== FONTS =====
-    private static Font baseFont;
     public static Font FONT_TITLE;
     public static Font FONT_SUBTITLE;
     public static Font FONT_BODY;
@@ -104,16 +103,27 @@ public final class UiTheme {
         if (initialized) return;
         initialized = true;
 
-        baseFont = new JLabel().getFont();
-        String fontFamily = baseFont.getFamily();
+        // Use a safe default font family
+        String fontFamily = Font.SANS_SERIF;
 
-        // Try to use Segoe UI on Windows for a modern look
-        if (System.getProperty("os.name", "").toLowerCase().contains("win")) {
-            Font segoe = new Font("Segoe UI", Font.PLAIN, 13);
-            if (segoe.getFamily().equals("Segoe UI")) {
-                fontFamily = "Segoe UI";
-                baseFont = segoe;
+        try {
+            // Only try to get system fonts if not in headless mode
+            if (!GraphicsEnvironment.isHeadless()) {
+                Font labelFont = new JLabel().getFont();
+                if (labelFont != null) {
+                    fontFamily = labelFont.getFamily();
+                }
+
+                // Try to use Segoe UI on Windows for a modern look
+                if (System.getProperty("os.name", "").toLowerCase().contains("win")) {
+                    Font segoe = new Font("Segoe UI", Font.PLAIN, 13);
+                    if (segoe.getFamily().equals("Segoe UI")) {
+                        fontFamily = "Segoe UI";
+                    }
+                }
             }
+        } catch (Exception e) {
+            log.debug("Could not determine system font, using default", e);
         }
 
         FONT_TITLE = new Font(fontFamily, Font.BOLD, 22);
@@ -222,8 +232,11 @@ public final class UiTheme {
      * Creates a styled text field.
      */
     public static JTextField createTextField() {
+        ensureInitialized();
         JTextField field = new JTextField();
-        field.setFont(FONT_BODY);
+        if (FONT_BODY != null) {
+            field.setFont(FONT_BODY);
+        }
         field.setBorder(new CompoundBorder(
                 new LineBorder(BORDER_COLOR, 1, true),
                 new EmptyBorder(SPACING_SM, SPACING_SM, SPACING_SM, SPACING_SM)
@@ -235,13 +248,25 @@ public final class UiTheme {
      * Creates a styled password field.
      */
     public static JPasswordField createPasswordField() {
+        ensureInitialized();
         JPasswordField field = new JPasswordField();
-        field.setFont(FONT_BODY);
+        if (FONT_BODY != null) {
+            field.setFont(FONT_BODY);
+        }
         field.setBorder(new CompoundBorder(
                 new LineBorder(BORDER_COLOR, 1, true),
                 new EmptyBorder(SPACING_SM, SPACING_SM, SPACING_SM, SPACING_SM)
         ));
         return field;
+    }
+
+    /**
+     * Ensures fonts are initialized without applying full theme.
+     */
+    private static void ensureInitialized() {
+        if (!initialized) {
+            initializeFonts();
+        }
     }
 
     /**
