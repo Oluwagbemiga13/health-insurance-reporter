@@ -19,6 +19,7 @@
     <dependencies>
         <dependency>
             <groupId>org.projectlombok</groupId>
+
             <artifactId>lombok</artifactId>
             <version>1.18.28</version>
         </dependency>
@@ -174,6 +175,7 @@
                             <outfile>${project.build.directory}/${project.artifactId}.exe</outfile>
                             <jar>${project.build.directory}/${project.build.finalName}.jar</jar>
                             <errTitle>${project.artifactId}</errTitle>
+                            <icon>src/main/resources/assets/launcher_icon.ico</icon>
                             <classPath>
                                 <mainClass>${main.class}</mainClass>
                             </classPath>
@@ -182,6 +184,18 @@
                                 <minVersion>17</minVersion>
                                 <requiresJdk>false</requiresJdk>
                             </jre>
+                            <versionInfo>
+                                <fileVersion>1.0.0.0</fileVersion>
+                                <txtFileVersion>${project.version}</txtFileVersion>
+                                <fileDescription>Aplikace pro kontrolu přehledu zdravotnich pojistoven</fileDescription>
+                                <copyright>Copyright © 2025 Daniel Rakovsky</copyright>
+                                <productVersion>1.0.0.0</productVersion>
+                                <txtProductVersion>${project.version}</txtProductVersion>
+                                <productName>Kontrola prehledu ZP</productName>
+                                <companyName>Daniel Rakovsky</companyName>
+                                <internalName>${project.artifactId}</internalName>
+                                <originalFilename>${project.artifactId}.exe</originalFilename>
+                            </versionInfo>
                         </configuration>
                     </execution>
                 </executions>
