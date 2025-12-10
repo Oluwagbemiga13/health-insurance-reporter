@@ -12,11 +12,39 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * Implementation of {@link SpreadsheetWorker} for reading and writing Excel (.xlsx) files.
+ * <p>
+ * This class uses Apache POI to interact with Excel workbooks. It expects each workbook
+ * to contain sheets named after Czech months, with client data organized in columns:
+ * <ul>
+ *     <li>Column A (index 0): Client name</li>
+ *     <li>Column B (index 1): Client ICO (identification number)</li>
+ *     <li>Column G (index 6): Report generated status (boolean)</li>
+ * </ul>
+ * </p>
+ *
+ * @see SpreadsheetWorker
+ * @see GoogleWorker
+ */
 @Slf4j
 public class ExcelWorker implements SpreadsheetWorker {
 
+    /**
+     * Reads client information from the specified Excel file for the given month.
+     * <p>
+     * The method looks for a sheet named after the Czech month name and reads
+     * client data starting from row 1 (skipping the header row at row 0).
+     * </p>
+     *
+     * @param filePath the absolute or relative path to the Excel file (.xlsx)
+     * @param month    the month determining which sheet to read from
+     * @return a list of {@link Client} objects read from the spreadsheet; empty list if sheet not found
+     * @throws FileNotFoundException if the specified file does not exist
+     */
     @Override
     public List<Client> readClients(String filePath, CzechMonth month) throws FileNotFoundException {
+        log.debug("Attempting to read clients from Excel file: {} for month: {}", filePath, month.getCzechName());
         File file = new File(filePath);
         List<Client> clients = new ArrayList<>();
 
@@ -73,6 +101,16 @@ public class ExcelWorker implements SpreadsheetWorker {
         return clients;
     }
 
+    /**
+     * Extracts the string value from an Excel cell, handling various cell types.
+     * <p>
+     * Supports STRING, NUMERIC (including dates), BOOLEAN, FORMULA, and BLANK cell types.
+     * Numeric values that are whole numbers are returned without decimal points.
+     * </p>
+     *
+     * @param cell the Excel cell to read from; may be {@code null}
+     * @return the cell value as a string; empty string if cell is {@code null} or blank
+     */
     private String getCellValueAsString(Cell cell) {
         if (cell == null) {
             return "";
@@ -107,6 +145,21 @@ public class ExcelWorker implements SpreadsheetWorker {
         };
     }
 
+    /**
+     * Extracts a boolean value from an Excel cell, handling various cell types.
+     * <p>
+     * Interprets the following as {@code true}:
+     * <ul>
+     *     <li>Boolean cell with value {@code true}</li>
+     *     <li>String cell containing "true", "yes", "ano", or "1" (case-insensitive)</li>
+     *     <li>Numeric cell with non-zero value</li>
+     *     <li>Formula cells are evaluated and interpreted using the above rules</li>
+     * </ul>
+     * </p>
+     *
+     * @param cell the Excel cell to read from; may be {@code null}
+     * @return {@code true} if the cell represents a truthy value; {@code false} otherwise
+     */
     private boolean getCellValueAsBoolean(Cell cell) {
         if (cell == null) {
             return false;
@@ -150,6 +203,8 @@ public class ExcelWorker implements SpreadsheetWorker {
      */
     @Override
     public void updateReportGeneratedStatus(String filePath, List<Client> clients, CzechMonth month) throws IOException {
+        log.debug("Updating report status for {} clients in file: {} for month: {}",
+                clients != null ? clients.size() : 0, filePath, month.getCzechName());
         File file = new File(filePath);
 
         if (!file.exists()) {

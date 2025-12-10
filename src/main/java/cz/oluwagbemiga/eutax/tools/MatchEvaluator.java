@@ -15,26 +15,53 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Evaluates which clients have matching report files and updates their reportGenerated status.
+ * Service class that evaluates which clients have matching report files and updates their report status.
+ * <p>
+ * This class acts as a bridge between the spreadsheet data (clients) and the file system (reports).
+ * It matches clients from a spreadsheet with report files found in a directory by comparing
+ * client ICO numbers with ICO numbers extracted from file names.
+ * </p>
+ * <p>
+ * The matching process:
+ * <ol>
+ *     <li>Reads client information from the spreadsheet for the specified month</li>
+ *     <li>Scans the reports folder for files and parses their names to extract ICO and date</li>
+ *     <li>Filters reports to only include those matching the target year and month</li>
+ *     <li>Updates each client's {@code reportGenerated} status based on whether a matching report exists</li>
+ * </ol>
+ * </p>
+ *
+ * @see SpreadsheetWorker
+ * @see IcoFromFiles
+ * @see Client
  */
 @Slf4j
 @RequiredArgsConstructor
 public class MatchEvaluator {
 
+    /** The spreadsheet worker used to read and write client data */
     private final SpreadsheetWorker spreadsheetWorker;
+
+    /** The file parser used to extract metadata from report file names */
     private final IcoFromFiles icoFromFiles;
 
     /**
-     * Reads clients from spreadsheet and checks if they have corresponding report files.
+     * Reads clients from a spreadsheet and checks if they have corresponding report files for the current year.
+     * <p>
+     * Uses the current year from {@link LocalDate#now()} as the target year for matching reports.
+     * </p>
      *
-     * @param spreadsheetIdentifier path to the spreadsheet containing client information
+     * @param spreadsheetIdentifier path to the spreadsheet or Google Sheets identifier containing client information
      * @param reportsFolder         path to the folder containing report files
-     * @param month                 the month to process
-     * @return list of clients with updated reportGenerated status
+     * @param month                 the month to process (determines which sheet to read and which reports to match)
+     * @return list of clients with updated {@code reportGenerated} status; {@code true} if a matching report exists
      * @throws FileNotFoundException if the spreadsheet doesn't exist
+     * @see #evaluateMatches(String, String, CzechMonth, int) for specifying a custom year
      */
     public List<Client> evaluateMatches(String spreadsheetIdentifier, String reportsFolder, CzechMonth month)
             throws FileNotFoundException {
+        log.debug("Evaluating matches for spreadsheet: {}, reports folder: {}, month: {}",
+                spreadsheetIdentifier, reportsFolder, month.getCzechName());
 
         log.info("Starting match evaluation for month: {}", month.getCzechName());
 
@@ -74,11 +101,23 @@ public class MatchEvaluator {
     }
 
     /**
-     * Overloaded method that accepts year parameter for historical data processing.
+     * Reads clients from a spreadsheet and checks if they have corresponding report files for a specific year.
+     * <p>
+     * This overloaded method allows processing historical data by specifying a custom year.
+     * </p>
+     *
+     * @param spreadsheetIdentifier path to the spreadsheet or Google Sheets identifier containing client information
+     * @param reportsFolder         path to the folder containing report files
+     * @param month                 the month to process (determines which sheet to read and which reports to match)
+     * @param year                  the year to match reports against (e.g., 2024 for historical processing)
+     * @return list of clients with updated {@code reportGenerated} status; {@code true} if a matching report exists
+     * @throws FileNotFoundException if the spreadsheet doesn't exist
      */
     public List<Client> evaluateMatches(String spreadsheetIdentifier, String reportsFolder,
                                         CzechMonth month, int year)
             throws FileNotFoundException {
+        log.debug("Evaluating matches for spreadsheet: {}, reports folder: {}, month: {}, year: {}",
+                spreadsheetIdentifier, reportsFolder, month.getCzechName(), year);
 
         log.info("Starting match evaluation for month: {} and year: {}",
                 month.getCzechName(), year);
@@ -112,7 +151,16 @@ public class MatchEvaluator {
         return updateClientsWithMatches(clients, icoToReportDate);
     }
 
+    /**
+     * Updates the {@code reportGenerated} status for each client based on whether their ICO
+     * exists in the provided report date map.
+     *
+     * @param clients         the original list of clients from the spreadsheet
+     * @param icoToReportDate a map of ICO numbers to their corresponding report dates
+     * @return a new list of clients with updated {@code reportGenerated} status
+     */
     private List<Client> updateClientsWithMatches(List<Client> clients, Map<String, LocalDate> icoToReportDate) {
+        log.debug("Updating {} clients with {} available reports", clients.size(), icoToReportDate.size());
         List<Client> updatedClients = new ArrayList<>();
         for (Client client : clients) {
             boolean hasReport = icoToReportDate.containsKey(client.ico());
