@@ -1,33 +1,15 @@
 package cz.oluwagbemiga.eutax.ui;
 
-import lombok.extern.slf4j.Slf4j;
-
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.util.List;
 
-@Slf4j
 public class StartWindow extends JFrame {
 
     public StartWindow() {
-        configureLookAndFeel();
+        UiTheme.apply();
         AppIconProvider.apply(this);
         buildUi();
-    }
-
-    private void configureLookAndFeel() {
-        List<String> lookAndFeels = List.of(UIManager.getSystemLookAndFeelClassName(),
-                "com.sun.java.swing.plaf.nimbus.NimbusLookAndFeel");
-
-        for (String lf : lookAndFeels) {
-            try {
-                UIManager.setLookAndFeel(lf);
-                break;
-            } catch (Exception e) {
-                log.error("Failed to set system look and feel", e);
-            }
-        }
     }
 
     private void buildUi() {
