@@ -71,14 +71,36 @@ public final class LoginWindow extends JDialog {
     }
 
     private JPanel buildButtons() {
-        JPanel panel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JPanel panel = new JPanel(new BorderLayout());
+
+        // Left side - recreate keystore button
+        JPanel leftPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JButton recreateBtn = new JButton("Nový klíč");
+        recreateBtn.setToolTipText("Vytvořit nové úložiště klíčů (např. při expiraci)");
+        recreateBtn.addActionListener(e -> recreateKeystore());
+        leftPanel.add(recreateBtn);
+
+        // Right side - cancel and login buttons
+        JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton cancel = new JButton("Ukončit");
         cancel.addActionListener(e -> System.exit(0));
-        panel.add(cancel);
+        rightPanel.add(cancel);
 
         continueButton.addActionListener(e -> authenticate());
-        panel.add(continueButton);
+        rightPanel.add(continueButton);
+
+        panel.add(leftPanel, BorderLayout.WEST);
+        panel.add(rightPanel, BorderLayout.EAST);
         return panel;
+    }
+
+    private void recreateKeystore() {
+        KeystoreWizardWindow.showRecreateWizard(null, () -> {
+            // After recreating keystore, user can try logging in again
+            passwordField.setText("");
+            statusLabel.setText("Úložiště bylo obnoveno. Zadejte nové heslo.");
+            statusLabel.setForeground(new Color(0, 128, 0));
+        });
     }
 
     private void authenticate() {
