@@ -1,12 +1,10 @@
 package cz.oluwagbemiga.eutax.ui;
 
-import cz.oluwagbemiga.eutax.pojo.Client;
-import cz.oluwagbemiga.eutax.pojo.CzechMonth;
-import cz.oluwagbemiga.eutax.pojo.ErrorReport;
-import cz.oluwagbemiga.eutax.pojo.WalkerResult;
-import cz.oluwagbemiga.eutax.tools.ExcelWorker;
+import cz.oluwagbemiga.eutax.pojo.*;
 import cz.oluwagbemiga.eutax.tools.IcoFromFiles;
 import cz.oluwagbemiga.eutax.tools.MatchEvaluator;
+import cz.oluwagbemiga.eutax.tools.SpreadsheetWorker;
+import cz.oluwagbemiga.eutax.tools.SpreadsheetWorkerFactory;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.swing.*;
@@ -23,19 +21,19 @@ import java.util.List;
 public class ResultsWindow extends JFrame {
 
     private final String folderPath;
-    private final String spreadsheetPath;
+    private final SpreadsheetSource spreadsheetSource;
     private final CzechMonth month;
 
     private final DefaultTableModel missingReportsModel;
     private final DefaultTableModel errorsModel;
     private final JLabel statusLabel = new JLabel(" ");
+    private final JButton saveButton = new JButton("Uložit");
     private JTabbedPane tabbedPane;
     private List<Client> lastEvaluatedClients = List.of();
-    private final JButton saveButton = new JButton("Uložit do Excel");
 
-    public ResultsWindow(String folderPath, String spreadsheetPath, CzechMonth month) {
+    public ResultsWindow(String folderPath, SpreadsheetSource spreadsheetSource, CzechMonth month) {
         this.folderPath = folderPath;
-        this.spreadsheetPath = spreadsheetPath;
+        this.spreadsheetSource = spreadsheetSource;
         this.month = month;
 
         setTitle("Výsledky kontroly - " + month.getCzechName());
@@ -61,7 +59,6 @@ public class ResultsWindow extends JFrame {
         setLocationRelativeTo(null);
         setVisible(true);
 
-        // Run evaluation in background
         loadData();
     }
 
@@ -69,41 +66,34 @@ public class ResultsWindow extends JFrame {
         JPanel content = new JPanel(new BorderLayout());
         content.setBorder(new EmptyBorder(16, 16, 16, 16));
 
-        // Tabbed pane for missing reports and errors
         tabbedPane = new JTabbedPane();
 
-        // Missing reports panel
         JPanel missingPanel = new JPanel(new BorderLayout());
         missingPanel.setBorder(new EmptyBorder(8, 8, 8, 8));
         JTable missingTable = new JTable(missingReportsModel);
         missingTable.setFillsViewportHeight(true);
         missingTable.getColumnModel().getColumn(0).setPreferredWidth(250);
         missingTable.getColumnModel().getColumn(1).setPreferredWidth(100);
-        JScrollPane missingScroll = new JScrollPane(missingTable);
-        missingPanel.add(missingScroll, BorderLayout.CENTER);
+        missingPanel.add(new JScrollPane(missingTable), BorderLayout.CENTER);
         tabbedPane.addTab("Chybějící reporty", missingPanel);
 
-        // Errors panel
         JPanel errorsPanel = new JPanel(new BorderLayout());
         errorsPanel.setBorder(new EmptyBorder(8, 8, 8, 8));
         JTable errorsTable = new JTable(errorsModel);
         errorsTable.setFillsViewportHeight(true);
         errorsTable.getColumnModel().getColumn(0).setPreferredWidth(200);
         errorsTable.getColumnModel().getColumn(1).setPreferredWidth(300);
-        JScrollPane errorsScroll = new JScrollPane(errorsTable);
-        errorsPanel.add(errorsScroll, BorderLayout.CENTER);
+        errorsPanel.add(new JScrollPane(errorsTable), BorderLayout.CENTER);
         tabbedPane.addTab("Chyby při načítání", errorsPanel);
 
         content.add(tabbedPane, BorderLayout.CENTER);
 
-        // Status bar
         JPanel statusPanel = new JPanel(new BorderLayout());
         statusPanel.setBorder(new EmptyBorder(8, 0, 0, 0));
         statusLabel.setForeground(Color.DARK_GRAY);
         statusPanel.add(statusLabel, BorderLayout.WEST);
         content.add(statusPanel, BorderLayout.NORTH);
 
-        // Bottom panel with buttons
         content.add(buildBottomPanel(), BorderLayout.SOUTH);
 
         setContentPane(content);
@@ -147,11 +137,11 @@ public class ResultsWindow extends JFrame {
             @Override
             protected Boolean doInBackground() {
                 try {
-                    ExcelWorker excelWorker = new ExcelWorker();
-                    excelWorker.updateReportGeneratedStatus(spreadsheetPath, lastEvaluatedClients, month);
+                    SpreadsheetWorker spreadsheetWorker = SpreadsheetWorkerFactory.create(spreadsheetSource);
+                    spreadsheetWorker.updateReportGeneratedStatus(spreadsheetSource.identifier(), lastEvaluatedClients, month);
                     return true;
                 } catch (Exception e) {
-                    log.error("Error saving data to Excel", e);
+                    log.error("Error saving data", e);
                     return false;
                 }
             }
@@ -186,18 +176,20 @@ public class ResultsWindow extends JFrame {
 
     private void loadData() {
         statusLabel.setText("Načítání dat...");
+        statusLabel.setForeground(Color.DARK_GRAY);
         missingReportsModel.setRowCount(0);
         errorsModel.setRowCount(0);
+        saveButton.setEnabled(false);
 
         SwingWorker<EvaluationResult, Void> worker = new SwingWorker<>() {
             @Override
             protected EvaluationResult doInBackground() {
                 try {
-                    ExcelWorker excelWorker = new ExcelWorker();
+                    SpreadsheetWorker spreadsheetWorker = SpreadsheetWorkerFactory.create(spreadsheetSource);
                     IcoFromFiles icoFromFiles = new IcoFromFiles();
-                    MatchEvaluator evaluator = new MatchEvaluator(excelWorker, icoFromFiles);
+                    MatchEvaluator evaluator = new MatchEvaluator(spreadsheetWorker, icoFromFiles);
 
-                    List<Client> clients = evaluator.evaluateMatches(spreadsheetPath, folderPath, month);
+                    List<Client> clients = evaluator.evaluateMatches(spreadsheetSource.identifier(), folderPath, month);
                     WalkerResult walkerResult = icoFromFiles.readReports(folderPath);
 
                     return new EvaluationResult(clients, walkerResult.errorReports(), null);
@@ -219,10 +211,7 @@ public class ResultsWindow extends JFrame {
                         return;
                     }
 
-                    // Store evaluated clients for saving
                     lastEvaluatedClients = result.clients();
-
-                    // Populate missing reports table
                     List<Client> missingClients = result.clients().stream()
                             .filter(c -> !c.reportGenerated())
                             .toList();
@@ -231,29 +220,26 @@ public class ResultsWindow extends JFrame {
                         missingReportsModel.addRow(new Object[]{client.name(), client.ico()});
                     }
 
-                    // Populate errors table
                     for (ErrorReport error : result.errors()) {
                         errorsModel.addRow(new Object[]{error.fileName(), error.errorMessage()});
                     }
 
-                    // Update status
                     long totalClients = result.clients().size();
                     long clientsWithReports = result.clients().stream()
                             .filter(Client::reportGenerated)
                             .count();
 
                     String status = String.format(
-                            "Celkem klientů: %d | S reporty: %d | Chybějící: %d | Chyby při načítání: %d",
-                            totalClients, clientsWithReports, missingClients.size(), result.errors().size()
+                            "Zdroj: %s | Celkem: %d | S reporty: %d | Chybějící: %d | Chyby: %d",
+                            spreadsheetSource.type(), totalClients, clientsWithReports,
+                            missingClients.size(), result.errors().size()
                     );
                     statusLabel.setText(status);
                     statusLabel.setForeground(Color.DARK_GRAY);
 
-                    // Update tab titles with counts
                     tabbedPane.setTitleAt(0, "Chybějící reporty (" + missingClients.size() + ")");
                     tabbedPane.setTitleAt(1, "Chyby při načítání (" + result.errors().size() + ")");
 
-                    // Enable save button
                     saveButton.setEnabled(!result.clients().isEmpty());
 
                 } catch (InterruptedException e) {
@@ -281,4 +267,3 @@ public class ResultsWindow extends JFrame {
     ) {
     }
 }
-

@@ -3,7 +3,7 @@ package cz.oluwagbemiga.eutax;
 import cz.oluwagbemiga.eutax.ui.LoginWindow;
 import cz.oluwagbemiga.eutax.ui.UiTheme;
 
-import javax.swing.SwingUtilities;
+import javax.swing.*;
 
 /**
  * Entry point responsible for applying global UI settings and showing the secure login window.

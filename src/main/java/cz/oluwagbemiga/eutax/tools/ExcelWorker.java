@@ -6,18 +6,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
-public class ExcelWorker implements SpreadsheetReader {
+public class ExcelWorker implements SpreadsheetWorker {
 
     @Override
     public List<Client> readClients(String filePath, CzechMonth month) throws FileNotFoundException {
@@ -152,6 +148,7 @@ public class ExcelWorker implements SpreadsheetReader {
      * @throws FileNotFoundException if the file does not exist
      * @throws IOException           if an error occurs while reading or writing the file
      */
+    @Override
     public void updateReportGeneratedStatus(String filePath, List<Client> clients, CzechMonth month) throws IOException {
         File file = new File(filePath);
 

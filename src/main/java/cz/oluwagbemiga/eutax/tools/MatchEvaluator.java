@@ -21,26 +21,26 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class MatchEvaluator {
 
-    private final ExcelWorker excelWorker;
+    private final SpreadsheetWorker spreadsheetWorker;
     private final IcoFromFiles icoFromFiles;
 
     /**
-     * Reads clients from Excel and checks if they have corresponding report files.
+     * Reads clients from spreadsheet and checks if they have corresponding report files.
      *
-     * @param excelFilePath path to the Excel file containing client information
-     * @param reportsFolder path to the folder containing report files
-     * @param month         the month to process
+     * @param spreadsheetIdentifier path to the spreadsheet containing client information
+     * @param reportsFolder         path to the folder containing report files
+     * @param month                 the month to process
      * @return list of clients with updated reportGenerated status
-     * @throws FileNotFoundException if the Excel file doesn't exist
+     * @throws FileNotFoundException if the spreadsheet doesn't exist
      */
-    public List<Client> evaluateMatches(String excelFilePath, String reportsFolder, CzechMonth month)
+    public List<Client> evaluateMatches(String spreadsheetIdentifier, String reportsFolder, CzechMonth month)
             throws FileNotFoundException {
 
         log.info("Starting match evaluation for month: {}", month.getCzechName());
 
-        // Read clients from Excel
-        List<Client> clients = excelWorker.readClients(excelFilePath, month);
-        log.info("Read {} clients from Excel", clients.size());
+        // Read clients from spreadsheet
+        List<Client> clients = spreadsheetWorker.readClients(spreadsheetIdentifier, month);
+        log.info("Read {} clients from spreadsheet", clients.size());
 
         // Read reports from file system
         WalkerResult walkerResult = icoFromFiles.readReports(reportsFolder);
@@ -70,42 +70,21 @@ public class MatchEvaluator {
         log.info("Found {} reports matching year {} and month {}",
                 icoToReportDate.size(), targetYear, targetMonth);
 
-        // Update clients with reportGenerated status
-        List<Client> updatedClients = new ArrayList<>();
-        for (Client client : clients) {
-            boolean hasReport = icoToReportDate.containsKey(client.ico());
-            Client updatedClient = new Client(
-                    client.name(),
-                    client.ico(),
-                    hasReport
-            );
-            updatedClients.add(updatedClient);
-
-            log.debug("Client {}: ICO={}, Report={}",
-                    client.name(), client.ico(), hasReport);
-        }
-
-        long withReports = updatedClients.stream()
-                .filter(Client::reportGenerated)
-                .count();
-        log.info("Match evaluation complete: {}/{} clients have reports",
-                withReports, updatedClients.size());
-
-        return updatedClients;
+        return updateClientsWithMatches(clients, icoToReportDate);
     }
 
     /**
      * Overloaded method that accepts year parameter for historical data processing.
      */
-    public List<Client> evaluateMatches(String excelFilePath, String reportsFolder,
+    public List<Client> evaluateMatches(String spreadsheetIdentifier, String reportsFolder,
                                         CzechMonth month, int year)
             throws FileNotFoundException {
 
         log.info("Starting match evaluation for month: {} and year: {}",
                 month.getCzechName(), year);
 
-        List<Client> clients = excelWorker.readClients(excelFilePath, month);
-        log.info("Read {} clients from Excel", clients.size());
+        List<Client> clients = spreadsheetWorker.readClients(spreadsheetIdentifier, month);
+        log.info("Read {} clients from spreadsheet", clients.size());
 
         WalkerResult walkerResult = icoFromFiles.readReports(reportsFolder);
         List<ParsedFileName> parsedFiles = walkerResult.parsedFileNames();
@@ -130,15 +109,18 @@ public class MatchEvaluator {
         log.info("Found {} reports matching year {} and month {}",
                 icoToReportDate.size(), year, month.getMonthNumber());
 
+        return updateClientsWithMatches(clients, icoToReportDate);
+    }
+
+    private List<Client> updateClientsWithMatches(List<Client> clients, Map<String, LocalDate> icoToReportDate) {
         List<Client> updatedClients = new ArrayList<>();
         for (Client client : clients) {
             boolean hasReport = icoToReportDate.containsKey(client.ico());
-            Client updatedClient = new Client(
+            updatedClients.add(new Client(
                     client.name(),
                     client.ico(),
                     hasReport
-            );
-            updatedClients.add(updatedClient);
+            ));
 
             log.debug("Client {}: ICO={}, Report={}",
                     client.name(), client.ico(), hasReport);

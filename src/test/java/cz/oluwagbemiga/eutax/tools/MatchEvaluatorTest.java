@@ -15,11 +15,10 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class MatchEvaluatorTest {
 
-    // Stub ExcelReader that returns predefined clients
-    static class ExcelWorkerStub extends ExcelWorker {
+    static class SpreadsheetWorkerStub implements SpreadsheetWorker {
         private final List<Client> clients;
 
-        ExcelWorkerStub(List<Client> clients) {
+        SpreadsheetWorkerStub(List<Client> clients) {
             this.clients = clients;
         }
 
@@ -27,9 +26,13 @@ class MatchEvaluatorTest {
         public List<Client> readClients(String filePath, CzechMonth month) throws FileNotFoundException {
             return clients;
         }
+
+        @Override
+        public void updateReportGeneratedStatus(String filePath, List<Client> clients, CzechMonth month) {
+            // no-op for tests
+        }
     }
 
-    // Stub IcoFromFiles that returns a predefined WalkerResult
     static class IcoFromFilesStub extends IcoFromFiles {
         private final WalkerResult result;
 
@@ -63,12 +66,12 @@ class MatchEvaluatorTest {
         WalkerResult walkerResult = new WalkerResult(parsed, List.of());
 
         MatchEvaluator evaluator = new MatchEvaluator(
-                new ExcelWorkerStub(clients),
+                new SpreadsheetWorkerStub(clients),
                 new IcoFromFilesStub(walkerResult)
         );
 
         // When
-        List<Client> updated = evaluator.evaluateMatches("ignored.xlsx", "ignoredDir", month, year);
+        List<Client> updated = evaluator.evaluateMatches("ignored", "ignoredDir", month, year);
 
         // Then
         assertEquals(3, updated.size());
@@ -88,9 +91,9 @@ class MatchEvaluatorTest {
                 new Client("Klient B s.r.o", "00000002", true)
         );
         WalkerResult empty = new WalkerResult(List.of(), List.of());
-        MatchEvaluator evaluator = new MatchEvaluator(new ExcelWorkerStub(clients), new IcoFromFilesStub(empty));
+        MatchEvaluator evaluator = new MatchEvaluator(new SpreadsheetWorkerStub(clients), new IcoFromFilesStub(empty));
 
-        List<Client> updated = evaluator.evaluateMatches("ignored.xlsx", "ignoredDir", CzechMonth.UNOR, 2024);
+        List<Client> updated = evaluator.evaluateMatches("ignored", "ignoredDir", CzechMonth.UNOR, 2024);
 
         assertEquals(2, updated.size());
         assertFalse(updated.get(0).reportGenerated());
@@ -107,8 +110,8 @@ class MatchEvaluatorTest {
         parsed.add(new ParsedFileName("00000001", LocalDate.of(year, month.getMonthNumber(), 10))); // matching
         WalkerResult wr = new WalkerResult(parsed, List.of());
 
-        MatchEvaluator evaluator = new MatchEvaluator(new ExcelWorkerStub(clients), new IcoFromFilesStub(wr));
-        List<Client> updated = evaluator.evaluateMatches("ignored.xlsx", "ignoredDir", month, year);
+        MatchEvaluator evaluator = new MatchEvaluator(new SpreadsheetWorkerStub(clients), new IcoFromFilesStub(wr));
+        List<Client> updated = evaluator.evaluateMatches("ignored", "ignoredDir", month, year);
 
         assertEquals(1, updated.size());
         assertTrue(updated.get(0).reportGenerated());
@@ -129,11 +132,11 @@ class MatchEvaluatorTest {
         );
 
         MatchEvaluator evaluator = new MatchEvaluator(
-                new ExcelWorkerStub(clients),
+                new SpreadsheetWorkerStub(clients),
                 new IcoFromFilesStub(new WalkerResult(parsed, List.of()))
         );
 
-        List<Client> updated = evaluator.evaluateMatches("ignored.xlsx", "ignoredDir", targetMonth);
+        List<Client> updated = evaluator.evaluateMatches("ignored", "ignoredDir", targetMonth);
         assertEquals(2, updated.size());
         assertTrue(updated.get(0).reportGenerated());
         assertFalse(updated.get(1).reportGenerated());

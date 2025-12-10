@@ -1,8 +1,8 @@
 package cz.oluwagbemiga.eutax.ui;
 
+import cz.oluwagbemiga.eutax.exceptions.LoginException;
 import cz.oluwagbemiga.eutax.security.SecretsRepository;
 import cz.oluwagbemiga.eutax.tools.GoogleWorker;
-import cz.oluwagbemiga.eutax.exceptions.LoginException;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.swing.*;
@@ -114,14 +114,12 @@ public final class LoginWindow extends JDialog {
                     showError(ex.getMessage());
                     passwordField.setText("");
                     toggleUi(true);
-                }
-                catch (InterruptedException ex) {
+                } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
                     log.error("Login interrupted", ex);
                     showError("Přihlášení bylo přerušeno.");
                     toggleUi(true);
-                }
-                catch (Exception ex) {
+                } catch (Exception ex) {
                     log.error("Unexpected error during login", ex);
                     showError("Heslo není správné nebo došlo k neočekávané chybě.");
                     passwordField.setText("");

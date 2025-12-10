@@ -1,6 +1,9 @@
 package cz.oluwagbemiga.eutax.ui;
 
 import cz.oluwagbemiga.eutax.pojo.CzechMonth;
+import cz.oluwagbemiga.eutax.pojo.SpreadsheetSource;
+import cz.oluwagbemiga.eutax.pojo.SpreadsheetSource.SpreadsheetSourceType;
+import cz.oluwagbemiga.eutax.tools.GoogleSheetIdResolver;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -11,7 +14,7 @@ import java.util.prefs.Preferences;
 
 public class SourcesSelectionWindow extends JFrame {
 
-    private static final String[] SUPPORTED_EXTENSIONS = {".xlsx", ".xls", ".ods"};
+    private static final String[] SUPPORTED_EXCEL_EXTENSIONS = {".xlsx"};
     private static final String PREF_FOLDER_PATH = "folderPath";
     private static final String PREF_SPREADSHEET_PATH = "spreadsheetPath";
     private static final String PREF_SELECTED_MONTH = "selectedMonth";
@@ -22,6 +25,7 @@ public class SourcesSelectionWindow extends JFrame {
     private final JComboBox<CzechMonth> monthComboBox = new JComboBox<>(CzechMonth.values());
     private final JLabel errorLabel = new JLabel(" ");
     private final JButton continueButton = new JButton("Pokračovat");
+    private SpreadsheetSource spreadsheetSource;
 
     public SourcesSelectionWindow() {
         setTitle("Výběr zdrojů");
@@ -35,16 +39,9 @@ public class SourcesSelectionWindow extends JFrame {
     }
 
     private void loadSavedPreferences() {
-        String savedFolder = prefs.get(PREF_FOLDER_PATH, "");
-        String savedSpreadsheet = prefs.get(PREF_SPREADSHEET_PATH, "");
+        folderField.setText(prefs.get(PREF_FOLDER_PATH, ""));
+        spreadsheetField.setText(prefs.get(PREF_SPREADSHEET_PATH, ""));
         int savedMonth = prefs.getInt(PREF_SELECTED_MONTH, java.time.LocalDate.now().getMonthValue() - 1);
-
-        if (!savedFolder.isEmpty()) {
-            folderField.setText(savedFolder);
-        }
-        if (!savedSpreadsheet.isEmpty()) {
-            spreadsheetField.setText(savedSpreadsheet);
-        }
         monthComboBox.setSelectedIndex(Math.max(0, Math.min(savedMonth, 11)));
     }
 
@@ -60,7 +57,7 @@ public class SourcesSelectionWindow extends JFrame {
         content.add(buildForm(), BorderLayout.CENTER);
         content.add(buildBottomPanel(), BorderLayout.SOUTH);
         setContentPane(content);
-        setPreferredSize(new Dimension(600, 380));
+        setPreferredSize(new Dimension(650, 430));
     }
 
     private JPanel buildForm() {
@@ -82,23 +79,22 @@ public class SourcesSelectionWindow extends JFrame {
         gbc.insets = new Insets(16, 0, 8, 8);
         gbc.fill = GridBagConstraints.NONE;
         gbc.weightx = 0;
-        panel.add(new JLabel("Tabulka klientů"), gbc);
+        panel.add(new JLabel("Zdroj tabulky"), gbc);
 
         gbc.gridy++;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.weightx = 1;
-        panel.add(createPickerPanel(spreadsheetField, this::pickSpreadsheet), gbc);
+        panel.add(buildSourceSelector(), gbc);
 
         gbc.gridy++;
         gbc.insets = new Insets(16, 0, 8, 8);
-        gbc.fill = GridBagConstraints.NONE;
-        gbc.weightx = 0;
         panel.add(new JLabel("Měsíc"), gbc);
 
         gbc.gridy++;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.weightx = 1;
-        monthComboBox.addActionListener(e -> savePreferences());
+        monthComboBox.addActionListener(e -> {
+            savePreferences();
+            validateInputs();
+        });
         panel.add(monthComboBox, gbc);
 
         gbc.gridy++;
@@ -108,9 +104,15 @@ public class SourcesSelectionWindow extends JFrame {
         panel.add(errorLabel, gbc);
         errorLabel.setForeground(new Color(176, 0, 32));
 
-        // Validate after UI is built with saved values
         SwingUtilities.invokeLater(this::validateInputs);
+        return panel;
+    }
 
+    private JPanel buildSourceSelector() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(new EmptyBorder(8, 16, 8, 16));
+        panel.add(new JLabel("Soubor se seznamem klientů"), BorderLayout.NORTH);
+        panel.add(createPickerPanel(spreadsheetField, this::pickSpreadsheet), BorderLayout.CENTER);
         return panel;
     }
 
@@ -139,9 +141,9 @@ public class SourcesSelectionWindow extends JFrame {
         continueButton.addActionListener(e -> {
             dispose();
             String folder = folderField.getText();
-            String spreadsheet = spreadsheetField.getText();
+            SpreadsheetSource source = buildSource();
             CzechMonth month = (CzechMonth) monthComboBox.getSelectedItem();
-            SwingUtilities.invokeLater(() -> new ResultsWindow(folder, spreadsheet, month));
+            SwingUtilities.invokeLater(() -> new ResultsWindow(folder, source, month));
         });
         bottom.add(continueButton);
         return bottom;
@@ -151,7 +153,6 @@ public class SourcesSelectionWindow extends JFrame {
         JFileChooser chooser = new JFileChooser();
         chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         chooser.setDialogTitle("Vyberte složku s reporty");
-        // Start from previously selected folder if it exists
         String currentFolder = folderField.getText();
         if (!currentFolder.isEmpty() && Files.isDirectory(Path.of(currentFolder))) {
             chooser.setCurrentDirectory(Path.of(currentFolder).toFile());
@@ -168,10 +169,10 @@ public class SourcesSelectionWindow extends JFrame {
     private void pickSpreadsheet() {
         JFileChooser chooser = new JFileChooser();
         chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
-        chooser.setDialogTitle("Vyberte tabulku klientů");
+        chooser.setDialogTitle("Vyberte Excel nebo Google Sheets soubor");
         chooser.setAcceptAllFileFilterUsed(false);
-        chooser.addChoosableFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Excel nebo LibreOffice", "xlsx", "xls", "ods"));
-        // Start from previously selected file's directory if it exists
+        chooser.addChoosableFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
+                "Excel (.xlsx) nebo Google Sheets (.gsheet, .url)", "xlsx", "gsheet", "url"));
         String currentSpreadsheet = spreadsheetField.getText();
         if (!currentSpreadsheet.isEmpty()) {
             Path currentPath = Path.of(currentSpreadsheet);
@@ -192,8 +193,6 @@ public class SourcesSelectionWindow extends JFrame {
 
     private void validateInputs() {
         String folderPath = folderField.getText();
-        String filePath = spreadsheetField.getText();
-
         if (folderPath.isBlank()) {
             setError("Vyberte složku s reporty.");
             continueButton.setEnabled(false);
@@ -206,30 +205,66 @@ public class SourcesSelectionWindow extends JFrame {
             return;
         }
 
-        if (filePath.isBlank()) {
-            setError("Vyberte tabulku klientů.");
+        String spreadsheetPath = spreadsheetField.getText();
+        if (spreadsheetPath.isBlank()) {
+            setError("Vyberte soubor se seznamem klientů.");
             continueButton.setEnabled(false);
             return;
         }
-        Path spreadsheet = Path.of(filePath);
-        if (!Files.isRegularFile(spreadsheet) || !hasSupportedExtension(spreadsheet)) {
-            setError("Soubor musí být Excel nebo LibreOffice tabulka.");
+
+        boolean googleSelection = isGoogleSelection(spreadsheetPath);
+        Path spreadsheet = Path.of(spreadsheetPath);
+        if (!Files.isRegularFile(spreadsheet)) {
+            setError("Vybraný soubor neexistuje.");
             continueButton.setEnabled(false);
             return;
+        }
+
+        if (googleSelection) {
+            String resolved = GoogleSheetIdResolver.resolve(spreadsheetPath);
+            if (resolved.isBlank()) {
+                setError("Vyberte platný Google Sheets zástupce (.gsheet nebo .url).");
+                continueButton.setEnabled(false);
+                return;
+            }
+            spreadsheetSource = new SpreadsheetSource(SpreadsheetSourceType.GOOGLE, resolved);
+        } else {
+            if (!hasSupportedExcelExtension(spreadsheet)) {
+                setError("Podporovaný je pouze Excel (.xlsx).");
+                continueButton.setEnabled(false);
+                return;
+            }
+            spreadsheetSource = new SpreadsheetSource(SpreadsheetSourceType.EXCEL, spreadsheetPath);
         }
 
         clearError();
         continueButton.setEnabled(true);
     }
 
-    private boolean hasSupportedExtension(Path path) {
+    private SpreadsheetSource buildSource() {
+        if (spreadsheetSource != null) {
+            return spreadsheetSource;
+        }
+        String candidate = spreadsheetField.getText();
+        if (isGoogleSelection(candidate)) {
+            return new SpreadsheetSource(SpreadsheetSourceType.GOOGLE, GoogleSheetIdResolver.resolve(candidate));
+        }
+        return new SpreadsheetSource(SpreadsheetSourceType.EXCEL, candidate);
+    }
+
+    private boolean hasSupportedExcelExtension(Path path) {
         String lower = path.getFileName().toString().toLowerCase();
-        for (String ext : SUPPORTED_EXTENSIONS) {
+        for (String ext : SUPPORTED_EXCEL_EXTENSIONS) {
             if (lower.endsWith(ext)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private boolean isGoogleSelection(String selection) {
+        String lower = selection.toLowerCase();
+        return lower.endsWith(".gsheet") || lower.endsWith(".url");
     }
 
     private void setError(String message) {

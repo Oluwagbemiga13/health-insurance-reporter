@@ -2,7 +2,7 @@ package cz.oluwagbemiga.eutax.ui;
 
 import lombok.extern.slf4j.Slf4j;
 
-import javax.swing.UIManager;
+import javax.swing.*;
 import java.util.ArrayList;
 import java.util.List;
 
