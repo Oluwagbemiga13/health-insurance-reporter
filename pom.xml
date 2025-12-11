@@ -13,7 +13,7 @@
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <main.class>cz.oluwagbemiga.eutax.ApplicationLauncher</main.class>
-        <bundled.jre.dir>jdk-17.0.8+7-jre</bundled.jre.dir>
+        <bundled.jre.dir>jdk-17.0.17+10-jre</bundled.jre.dir>
     </properties>
 
     <dependencies>

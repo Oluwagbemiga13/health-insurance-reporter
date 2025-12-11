@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nastavení Google Sheets - Health Insurance Reporter</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        h1, h2, h3 { color: #2c3e50; }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        pre code {
+            padding: 0;
+            background: none;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 15px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f4f4f4;
+        }
+        blockquote {
+            border-left: 4px solid #e74c3c;
+            margin: 15px 0;
+            padding: 10px 20px;
+            background-color: #fff5f5;
+        }
+        a { color: #3498db; }
+        hr {
+            border: none;
+            border-top: 1px solid #ddd;
+            margin: 30px 0;
+        }
+        .back-link {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<p class="back-link">← <a href="readme.html">Zpět na hlavní dokumentaci</a></p>
+
+<h1 id="-nastaven-google-sheets">🔑 Nastavení Google Sheets</h1>
+<p>Pro použití Google Sheets je nutné vytvořit Google Service Account a správně nastavit oprávnění.</p>
+
+<hr>
+
+<h2 id="krok-1-vytvo-en-google-cloud-projektu">Krok 1: Vytvoření Google Cloud projektu</h2>
+<ol>
+    <li>Přejděte na <a href="https://console.cloud.google.com/">Google Cloud Console</a></li>
+    <li>Vytvořte nový projekt nebo vyberte existující</li>
+    <li>V levém menu vyberte <strong>APIs &amp; Services</strong> → <strong>Enable APIs and Services</strong></li>
+    <li>Vyhledejte <strong>Google Sheets API</strong> a povolte jej</li>
+</ol>
+
+<hr>
+
+<h2 id="krok-2-vytvo-en-service-account">Krok 2: Vytvoření Service Account</h2>
+<ol>
+    <li>V <a href="https://console.cloud.google.com/">Google Cloud Console</a> přejděte na <strong>IAM &amp; Admin</strong> → <strong>Service Accounts</strong></li>
+    <li>Klikněte na <strong>Create Service Account</strong></li>
+    <li>Vyplňte:
+        <ul>
+            <li><strong>Service account name</strong>: např. <code>health-insurance-reporter</code></li>
+            <li><strong>Service account ID</strong>: vyplní se automaticky</li>
+        </ul>
+    </li>
+    <li>Klikněte na <strong>Create and Continue</strong></li>
+    <li>Přeskočte sekci <strong>Grant this service account access</strong> (není potřeba)</li>
+    <li>Klikněte na <strong>Done</strong></li>
+</ol>
+
+<hr>
+
+<h2 id="krok-3-vygenerov-n-json-kl-e">Krok 3: Vygenerování JSON klíče</h2>
+<ol>
+    <li>V seznamu Service Accounts klikněte na vytvořený účet</li>
+    <li>Přejděte na záložku <strong>Keys</strong></li>
+    <li>Klikněte na <strong>Add Key</strong> → <strong>Create new key</strong></li>
+    <li>Vyberte formát <strong>JSON</strong></li>
+    <li>Klikněte na <strong>Create</strong></li>
+    <li>Soubor se automaticky stáhne – <strong>uložte jej na bezpečné místo!</strong></li>
+</ol>
+
+<hr>
+
+<h2 id="krok-4-sd-len-google-sheets-tabulky">Krok 4: Sdílení Google Sheets tabulky</h2>
+<p><strong>Důležité:</strong> Service Account musí mít přístup k tabulce, kterou chcete používat.</p>
+<ol>
+    <li>Otevřete JSON soubor a najděte hodnotu <code>client_email</code>, např.:
+        <pre><code>"client_email": "health-insurance-reporter@your-project.iam.gserviceaccount.com"</code></pre>
+    </li>
+    <li>Otevřete vaši Google Sheets tabulku</li>
+    <li>Klikněte na tlačítko <strong>Sdílet</strong> (Share)</li>
+    <li>Vložte e-mailovou adresu Service Account</li>
+    <li>Nastavte oprávnění:
+        <ul>
+            <li><strong>Editor</strong>: aplikace musí aktualizovat sloupec G (stav vygenerování)</li>
+        </ul>
+    </li>
+    <li>Klikněte na <strong>Odeslat</strong> (Send)</li>
+</ol>
+
+<hr>
+
+<h2 id="krok-5-import-kl-e-do-aplikace">Krok 5: Import klíče do aplikace</h2>
+<ol>
+    <li>Spusťte aplikaci Health Insurance Reporter</li>
+    <li>Při prvním spuštění (nebo přes menu) se zobrazí průvodce vytvoření keystore</li>
+    <li>Vyberte stažený JSON soubor</li>
+    <li>Nastavte heslo pro zabezpečení klíče</li>
+    <li>Aplikace vytvoří soubor <code>secrets.p12</code> vedle .exe souboru</li>
+</ol>
+<blockquote>
+    <p>⚠️ <strong>Bezpečnostní upozornění:</strong> JSON klíč má plný přístup k Service Account. Po importu do aplikace jej můžete smazat nebo bezpečně archivovat.</p>
+</blockquote>
+
+<hr>
+
+<p class="back-link">← <a href="readme.html">Zpět na hlavní dokumentaci</a></p>
+
+</body>
+</html>
+

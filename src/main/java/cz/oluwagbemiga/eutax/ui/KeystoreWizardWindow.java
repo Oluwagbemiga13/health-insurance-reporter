@@ -251,6 +251,33 @@ public final class KeystoreWizardWindow extends JDialog {
         desc.setForeground(UiTheme.TEXT_SECONDARY);
         desc.setAlignmentX(Component.CENTER_ALIGNMENT);
         panel.add(desc);
+        panel.add(Box.createVerticalStrut(UiTheme.SPACING_SM));
+
+        // Help link
+        JPanel helpLinkPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+        helpLinkPanel.setOpaque(false);
+        helpLinkPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        JLabel helpLink = new JLabel("<html>Jak získat JSON soubor?</html>");
+        helpLink.setFont(UiTheme.FONT_SMALL);
+        helpLink.setForeground(UiTheme.PRIMARY);
+        helpLink.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        helpLink.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseEntered(java.awt.event.MouseEvent e) {
+                helpLink.setText("<html><u>Jak získat JSON soubor?</u></html>");
+            }
+            @Override
+            public void mouseExited(java.awt.event.MouseEvent e) {
+                helpLink.setText("<html>Jak získat JSON soubor?</html>");
+            }
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                openGoogleSheetsSetupGuide();
+            }
+        });
+        helpLinkPanel.add(helpLink);
+        panel.add(helpLinkPanel);
         panel.add(Box.createVerticalStrut(UiTheme.SPACING_LG));
 
         // File picker
@@ -582,6 +609,10 @@ public final class KeystoreWizardWindow extends JDialog {
         iconPanel.add(label);
 
         return iconPanel;
+    }
+
+    private void openGoogleSheetsSetupGuide() {
+        DocumentationHelper.openDocumentation("nastaveni-google-sheets.html", this);
     }
 
     private void handleCancel() {

@@ -1,0 +1,216 @@
+﻿<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Health Insurance Reporter - Dokumentace</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        h1, h2, h3 { color: #2c3e50; }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        pre code {
+            padding: 0;
+            background: none;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 15px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f4f4f4;
+        }
+        blockquote {
+            border-left: 4px solid #e74c3c;
+            margin: 15px 0;
+            padding: 10px 20px;
+            background-color: #fff5f5;
+        }
+        a { color: #3498db; }
+        hr {
+            border: none;
+            border-top: 1px solid #ddd;
+            margin: 30px 0;
+        }
+    </style>
+</head>
+<body>
+
+<h1 id="-health-insurance-reporter">📄 Health Insurance Reporter</h1>
+<p><strong>Desktopová aplikace pro kontrolu kompletnosti přehledů pro zdravotní pojišťovny.</strong>
+    Aplikace umožňuje porovnat seznam klientů uvedený v Excel tabulce (.xlsx) nebo Google Sheets s PDF přehledy vygenerovanými účetními programy <strong>MONEY</strong> a <strong>POHODA</strong>.
+    Cílem je rychle zjistit, zda jsou všechny požadované přehledy vytvořené, nebo zda některé chybí.</p>
+<hr>
+<h2 id="-hlavn-funkce">💡 Hlavní funkce</h2>
+<h3 id="-import-seznamu-klient-">✔️ Import seznamu klientů</h3>
+<p>Aplikace načte Excel tabulku (.xlsx) nebo Google Sheets obsahující seznam klientů (název a IČO).</p>
+<h3 id="-kontrola-pdf-p-ehled-">✔️ Kontrola PDF přehledů</h3>
+<p>Po výběru složky s PDF přehledy aplikace provede kontrolu podle názvů souborů:</p>
+<ul>
+    <li>ověří, zda pro všechny klienty existuje odpovídající PDF přehled</li>
+    <li>identifikuje chybějící přehledy</li>
+    <li>upozorní na případné přebývající PDF soubory, které klientům z tabulky neodpovídají</li>
+</ul>
+<h3 id="-v-sledky">✔️ Výsledky</h3>
+<p>Aplikace zobrazí:</p>
+<ul>
+    <li><strong>nalezené klienty</strong> ✔️</li>
+    <li><strong>chybějící přehledy</strong> ❌</li>
+    <li><strong>nepárové PDF soubory</strong></li>
+</ul>
+<hr>
+<h2 id="-spu-t-n-aplikace-launch4j-stand-alone-">🚀 Spuštění aplikace (Launch4j – stand-alone)</h2>
+<p>Aplikace se distribuuje jako <strong>samostatný .exe soubor</strong>.
+    Díky použití <em>Launch4j</em> není nutné, aby měl uživatel nainstalovanou Javu – JRE 17 je součástí balíčku.</p>
+<h3 id="jak-spustit-">Jak spustit:</h3>
+<ol>
+    <li>Stáhněte ZIP s aplikací</li>
+    <li>Rozbalte jej</li>
+    <li>Spusťte: <code>health-insurance-reporter.exe</code></li>
+    <li>Aplikace se otevře v grafickém rozhraní (Java Swing)</li>
+</ol>
+<hr>
+<h2 id="-vstupn-data">📁 Vstupní data</h2>
+<h3 id="excel-tabulka-xlsx-">Excel tabulka (.xlsx)</h3>
+<p>Aplikace pracuje s Excel tabulkou ve formátu <strong>.xlsx</strong> (Microsoft Excel 2007+). </p>
+<h3 id="google-sheets">Google Sheets</h3>
+<p>Aplikace podporuje i přímé načítání dat z Google Sheets. Viz <a href="nastaveni-google-sheets.html">Nastavení Google Sheets</a>.</p>
+
+<h2 id="struktura-google-sheets-tabulky">Struktura tabulky</h2>
+<p>Tabulka musí mít stejnou strukturu jako Excel soubor:</p>
+<table>
+    <thead>
+    <tr>
+        <th>Sloupec</th>
+        <th>Obsah</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+        <td>A</td>
+        <td>Název klienta</td>
+    </tr>
+    <tr>
+        <td>B</td>
+        <td>IČO klienta</td>
+    </tr>
+    <tr>
+        <td>G</td>
+        <td>Stav vygenerování (TRUE/FALSE)</td>
+    </tr>
+    </tbody>
+</table>
+<p>Listy musí být pojmenované podle českých názvů měsíců: <code>Leden</code>, <code>Únor</code>, <code>Březen</code>, <code>Duben</code>, <code>Květen</code>, <code>Červen</code>, <code>Červenec</code>, <code>Srpen</code>, <code>Září</code>, <code>Říjen</code>, <code>Listopad</code>, <code>Prosinec</code>.</p>
+
+
+<h3 id="pdf-přehledy">PDF přehledy</h3>
+<p>Aplikace provádí párování klientů podle IČO v názvech PDF souborů.</p>
+<p><strong>Podporované formáty názvů:</strong></p>
+<ul>
+    <li><code>PPPZ-02604477-2025-11_VZP_07.12.2025.pdf</code> (formát MONEY)</li>
+    <li><code>10751416_VZP_2025_11.pdf</code> (formát POHODA)</li>
+</ul>
+<hr>
+<h2 id="-technick-informace">🔧 Technické informace</h2>
+<h3 id="pou-it-technologie">Použité technologie</h3>
+<table>
+    <thead>
+    <tr>
+        <th>Technologie</th>
+        <th>Verze</th>
+        <th>Popis</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+        <td><strong>Java</strong></td>
+        <td>17 (Eclipse Temurin)</td>
+        <td>Programovací jazyk</td>
+    </tr>
+    <tr>
+        <td><strong>Maven</strong></td>
+        <td>3.x</td>
+        <td>Build nástroj</td>
+    </tr>
+    <tr>
+        <td><strong>Apache POI</strong></td>
+        <td>5.5.1</td>
+        <td>Práce s Excel soubory</td>
+    </tr>
+    <tr>
+        <td><strong>Google Sheets API</strong></td>
+        <td>v4</td>
+        <td>Integrace s Google Sheets</td>
+    </tr>
+    <tr>
+        <td><strong>Launch4j</strong></td>
+        <td>2.4.1</td>
+        <td>Vytvoření .exe souboru</td>
+    </tr>
+    <tr>
+        <td><strong>Logback</strong></td>
+        <td>1.5.21</td>
+        <td>Logování</td>
+    </tr>
+    <tr>
+        <td><strong>Lombok</strong></td>
+        <td>1.18.28</td>
+        <td>Redukce boilerplate kódu</td>
+    </tr>
+    </tbody>
+</table>
+<h3 id="architektura">Architektura</h3>
+<pre><code>cz.oluwagbemiga.eutax
+├── ApplicationLauncher.java      <span class="hljs-comment"># Vstupní bod aplikace</span>
+├── pojo/                         <span class="hljs-comment"># Datové objekty (Client, ParsedFileName, atd.)</span>
+├── security/                     <span class="hljs-comment"># Správa klíčů a přihlašovacích údajů</span>
+│   ├── KeystoreCreator.java      <span class="hljs-comment"># Vytváření PKCS12 keystore</span>
+│   └── SecretsRepository.java    <span class="hljs-comment"># Načítání credentials z keystore</span>
+├── tools/                        <span class="hljs-comment"># Pomocné třídy</span>
+│   ├── ExcelWorker.java          <span class="hljs-comment"># Práce s Excel soubory</span>
+│   ├── GoogleWorker.java         <span class="hljs-comment"># Práce s Google Sheets</span>
+│   ├── SpreadsheetWorker.java    <span class="hljs-comment"># Rozhraní pro práci s tabulkami</span>
+│   ├── MatchEvaluator.java       <span class="hljs-comment"># Párování klientů s PDF</span>
+│   └── IcoFromFiles.java         <span class="hljs-comment"># Extrakce IČO z názvů souborů</span>
+└── ui/                           <span class="hljs-comment"># Uživatelské rozhraní (Java Swing)</span>
+    ├── StartWindow.java          <span class="hljs-comment"># Hlavní okno</span>
+    ├── LoginWindow.java          <span class="hljs-comment"># Přihlašovací okno</span>
+    └── ResultsWindow.java        <span class="hljs-comment"># Zobrazení výsledků</span>
+</code></pre><h3 id="build">Build</h3>
+<pre><code class="lang-bash"><span class="hljs-meta"># Kompilace a vytvoření .exe</span>
+mvn clean package
+
+<span class="hljs-meta"># Výsledné soubory:</span>
+<span class="hljs-meta"># - target/health-insurance-reporter-1.0-SNAPSHOT.jar</span>
+<span class="hljs-meta"># - target/health-insurance-reporter.exe</span>
+</code></pre>
+<hr>
+<h2 id="-licence">📝 Licence</h2>
+<p>Copyright © 2025 Daniel Rakovsky</p>
+
+</body>
+</html>
+

@@ -81,13 +81,44 @@ public class StartWindow extends JFrame {
 
         card.add(buttonsPanel);
 
-        // Footer with version
+        // Footer with version and docs link
         card.add(Box.createVerticalStrut(UiTheme.SPACING_XL));
+
+        JPanel footerPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 0));
+        footerPanel.setOpaque(false);
+        footerPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
         JLabel versionLabel = new JLabel("v1.0");
         versionLabel.setFont(UiTheme.FONT_SMALL);
         versionLabel.setForeground(UiTheme.TEXT_SECONDARY);
-        versionLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        card.add(versionLabel);
+        footerPanel.add(versionLabel);
+
+        JLabel separatorLabel = new JLabel("•");
+        separatorLabel.setFont(UiTheme.FONT_SMALL);
+        separatorLabel.setForeground(UiTheme.TEXT_SECONDARY);
+        footerPanel.add(separatorLabel);
+
+        JLabel docsLink = new JLabel("<html>Dokumentace</html>");
+        docsLink.setFont(UiTheme.FONT_SMALL);
+        docsLink.setForeground(UiTheme.PRIMARY);
+        docsLink.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        docsLink.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseEntered(java.awt.event.MouseEvent e) {
+                docsLink.setText("<html><u>Dokumentace</u></html>");
+            }
+            @Override
+            public void mouseExited(java.awt.event.MouseEvent e) {
+                docsLink.setText("<html>Dokumentace</html>");
+            }
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                openDocumentation();
+            }
+        });
+        footerPanel.add(docsLink);
+
+        card.add(footerPanel);
 
         root.add(card);
         add(root, BorderLayout.CENTER);
@@ -103,6 +134,10 @@ public class StartWindow extends JFrame {
             new SourcesSelectionWindow();
             dispose();
         });
+    }
+
+    private void openDocumentation() {
+        DocumentationHelper.openDocumentation("readme.html", this);
     }
 }
 
