@@ -14,10 +14,10 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * Wizard dialog that guides users through creating a PKCS12 keystore from a JSON file.
+ * Wizard window that guides users through creating a PKCS12 keystore from a JSON file.
  */
 @Slf4j
-public final class KeystoreWizardWindow extends JDialog {
+public final class KeystoreWizardWindow extends JFrame {
 
     private static final int STEP_WELCOME = 0;
     private static final int STEP_SELECT_FILE = 1;
@@ -55,7 +55,7 @@ public final class KeystoreWizardWindow extends JDialog {
     private final JLabel resultDetailLabel = new JLabel(" ");
 
     public KeystoreWizardWindow(Frame owner, Runnable onSuccess, Runnable onCancel, boolean isRecreate) {
-        super(owner, isRecreate ? "Obnovení úložiště klíčů" : "Vytvoření úložiště klíčů", true);
+        super(isRecreate ? "Obnovení úložiště klíčů" : "Vytvoření úložiště klíčů");
         this.onSuccess = Objects.requireNonNull(onSuccess, "onSuccess");
         this.onCancel = onCancel != null ? onCancel : () -> {};
         this.isRecreate = isRecreate;

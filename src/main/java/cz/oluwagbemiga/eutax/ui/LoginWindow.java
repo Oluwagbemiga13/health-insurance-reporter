@@ -15,7 +15,7 @@ import java.util.function.Supplier;
  * Initial window that validates the keystore password before entering the app.
  */
 @Slf4j
-public final class LoginWindow extends JDialog {
+public final class LoginWindow extends JFrame {
 
     private final JPasswordField passwordField = UiTheme.createPasswordField();
     private final JLabel statusLabel = UiTheme.createErrorLabel();
@@ -25,7 +25,7 @@ public final class LoginWindow extends JDialog {
     private final Runnable onSuccess;
 
     public LoginWindow(Runnable onSuccess) {
-        super((Frame) null, "Bezpečné přihlášení", true);
+        super("Bezpečné přihlášení");
         this.onSuccess = Objects.requireNonNull(onSuccess, "onSuccess");
         UiTheme.apply();
         AppIconProvider.apply(this);
