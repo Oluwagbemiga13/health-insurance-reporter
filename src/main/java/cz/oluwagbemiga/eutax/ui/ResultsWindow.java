@@ -26,6 +26,7 @@ public class ResultsWindow extends JFrame {
     private final SpreadsheetSource spreadsheetSource;
     private final CzechMonth month;
 
+    private final DefaultTableModel successfulMatchesModel;
     private final DefaultTableModel missingReportsModel;
     private final DefaultTableModel errorsModel;
     private final JLabel statusLabel = new JLabel(" ");
@@ -33,9 +34,18 @@ public class ResultsWindow extends JFrame {
     private JButton backButton;
     private JButton refreshButton;
     private JTabbedPane tabbedPane;
+    private JTable successfulTable;
     private JTable missingTable;
     private JTable errorsTable;
     private List<Client> lastEvaluatedClients = List.of();
+
+    // Progress components
+    private JPanel progressPanel;
+    private JLabel progressLabel;
+    private JPanel contentCard;
+
+    // Success message components
+    private JPanel successPanel;
 
     public ResultsWindow(String folderPath, SpreadsheetSource spreadsheetSource, CzechMonth month) {
         this.folderPath = folderPath;
@@ -46,6 +56,13 @@ public class ResultsWindow extends JFrame {
         setTitle("Výsledky kontroly - " + month.getCzechName());
         setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         AppIconProvider.apply(this);
+
+        successfulMatchesModel = new DefaultTableModel(new String[]{"Jméno klienta", "IČO"}, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
 
         missingReportsModel = new DefaultTableModel(new String[]{"Jméno klienta", "IČO"}, 0) {
             @Override
@@ -103,12 +120,31 @@ public class ResultsWindow extends JFrame {
 
         root.add(headerPanel, BorderLayout.NORTH);
 
+        // Progress panel (initially hidden)
+        progressPanel = createProgressPanel();
+        progressPanel.setVisible(false);
+
         // Main content - tabbed pane with tables
-        JPanel contentCard = UiTheme.createCardPanel();
+        contentCard = UiTheme.createCardPanel();
         contentCard.setLayout(new BorderLayout());
 
         tabbedPane = new JTabbedPane();
         tabbedPane.setFont(UiTheme.FONT_BODY);
+
+        // Successful matches tab (first)
+        JPanel successfulPanel = new JPanel(new BorderLayout());
+        successfulPanel.setOpaque(false);
+        successfulPanel.setBorder(new EmptyBorder(UiTheme.SPACING_SM, UiTheme.SPACING_SM, UiTheme.SPACING_SM, UiTheme.SPACING_SM));
+
+        successfulTable = new JTable(successfulMatchesModel);
+        styleTable(successfulTable);
+        successfulTable.getColumnModel().getColumn(0).setPreferredWidth(280);
+        successfulTable.getColumnModel().getColumn(1).setPreferredWidth(120);
+
+        JScrollPane successfulScroll = new JScrollPane(successfulTable);
+        successfulScroll.setBorder(BorderFactory.createLineBorder(UiTheme.BORDER_COLOR));
+        successfulPanel.add(successfulScroll, BorderLayout.CENTER);
+        tabbedPane.addTab("Úspěšné shody", successfulPanel);
 
         // Missing reports tab
         JPanel missingPanel = new JPanel(new BorderLayout());
@@ -141,7 +177,19 @@ public class ResultsWindow extends JFrame {
         tabbedPane.addTab("Chyby při načítání", errorsPanel);
 
         contentCard.add(tabbedPane, BorderLayout.CENTER);
-        root.add(contentCard, BorderLayout.CENTER);
+
+        // Success panel (initially hidden)
+        successPanel = createSuccessPanel();
+        successPanel.setVisible(false);
+
+        // Wrapper panel to hold content, progress, and success panels
+        JPanel centerWrapper = new JPanel(new BorderLayout());
+        centerWrapper.setOpaque(false);
+        centerWrapper.add(progressPanel, BorderLayout.NORTH);
+        centerWrapper.add(contentCard, BorderLayout.CENTER);
+        centerWrapper.add(successPanel, BorderLayout.SOUTH);
+
+        root.add(centerWrapper, BorderLayout.CENTER);
 
         // Bottom buttons panel
         root.add(buildBottomPanel(), BorderLayout.SOUTH);
@@ -194,6 +242,159 @@ public class ResultsWindow extends JFrame {
         return statusPanel;
     }
 
+    private JPanel createProgressPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(UiTheme.BG_CARD);
+        panel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 1, 0, UiTheme.BORDER_COLOR),
+                new EmptyBorder(UiTheme.SPACING_LG, UiTheme.SPACING_LG, UiTheme.SPACING_LG, UiTheme.SPACING_LG)
+        ));
+
+        // Progress label with icon-like indicator
+        JPanel labelPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, UiTheme.SPACING_SM, 0));
+        labelPanel.setOpaque(false);
+
+        progressLabel = new JLabel("Načítání dat...");
+        progressLabel.setFont(UiTheme.FONT_SUBTITLE);
+        progressLabel.setForeground(UiTheme.TEXT_PRIMARY);
+        labelPanel.add(progressLabel);
+
+        labelPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(labelPanel);
+
+        panel.add(Box.createVerticalStrut(UiTheme.SPACING_MD));
+
+        // Animated spinner using custom painted component
+        JPanel spinnerWrapper = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        spinnerWrapper.setOpaque(false);
+        spinnerWrapper.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        // Create animated spinning indicator
+        JPanel spinner = new JPanel() {
+            private int angle = 0;
+            private final Timer timer = new Timer(50, e -> {
+                angle = (angle + 30) % 360;
+                repaint();
+            });
+
+            {
+                setPreferredSize(new Dimension(40, 40));
+                setOpaque(false);
+                timer.start();
+            }
+
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2d = (Graphics2D) g.create();
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+                int centerX = getWidth() / 2;
+                int centerY = getHeight() / 2;
+                int radius = 14;
+                int dotRadius = 4;
+
+                for (int i = 0; i < 8; i++) {
+                    double theta = Math.toRadians(angle + i * 45);
+                    int x = (int) (centerX + radius * Math.cos(theta));
+                    int y = (int) (centerY + radius * Math.sin(theta));
+
+                    // Fade out dots based on position
+                    float alpha = 1.0f - (i * 0.1f);
+                    g2d.setColor(new Color(
+                            UiTheme.PRIMARY.getRed(),
+                            UiTheme.PRIMARY.getGreen(),
+                            UiTheme.PRIMARY.getBlue(),
+                            (int) (255 * alpha)
+                    ));
+                    g2d.fillOval(x - dotRadius, y - dotRadius, dotRadius * 2, dotRadius * 2);
+                }
+                g2d.dispose();
+            }
+        };
+
+        spinnerWrapper.add(spinner);
+        panel.add(spinnerWrapper);
+
+        panel.add(Box.createVerticalStrut(UiTheme.SPACING_SM));
+
+        // Subtitle with additional info
+        JLabel subtitleLabel = UiTheme.createDescriptionLabel("Prosím vyčkejte...");
+        subtitleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(subtitleLabel);
+
+        return panel;
+    }
+
+    private JPanel createSuccessPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(UiTheme.BG_CARD);
+        panel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(UiTheme.SUCCESS, 2),
+                new EmptyBorder(UiTheme.SPACING_LG * 2, UiTheme.SPACING_LG, UiTheme.SPACING_LG * 2, UiTheme.SPACING_LG)
+        ));
+
+        // Add vertical glue to center content
+        panel.add(Box.createVerticalGlue());
+
+        // Checkmark icon using Unicode
+        JLabel checkmarkLabel = new JLabel("✓");
+        checkmarkLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 48));
+        checkmarkLabel.setForeground(UiTheme.SUCCESS);
+        checkmarkLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(checkmarkLabel);
+
+        panel.add(Box.createVerticalStrut(UiTheme.SPACING_MD));
+
+        // Main success message
+        JLabel successLabel = new JLabel("Data byla úspěšně uložena!");
+        successLabel.setFont(UiTheme.FONT_TITLE.deriveFont(Font.BOLD, 24f));
+        successLabel.setForeground(UiTheme.SUCCESS);
+        successLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(successLabel);
+
+        panel.add(Box.createVerticalStrut(UiTheme.SPACING_SM));
+
+        // Subtitle
+        JLabel subtitleLabel = UiTheme.createDescriptionLabel("Změny byly uloženy do tabulky.");
+        subtitleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(subtitleLabel);
+
+        // Add vertical glue to center content
+        panel.add(Box.createVerticalGlue());
+
+        return panel;
+    }
+
+    private void showSuccess() {
+        successPanel.setVisible(true);
+        contentCard.setVisible(false);
+        progressPanel.setVisible(false);
+        backButton.setEnabled(true);
+        refreshButton.setEnabled(true);
+        saveButton.setEnabled(false);
+    }
+
+    private void showProgress(String message) {
+        progressLabel.setText(message);
+        progressPanel.setVisible(true);
+        contentCard.setVisible(false);
+        successPanel.setVisible(false);
+        backButton.setEnabled(false);
+        refreshButton.setEnabled(false);
+        saveButton.setEnabled(false);
+    }
+
+    private void hideProgress() {
+        progressPanel.setVisible(false);
+        successPanel.setVisible(false);
+        contentCard.setVisible(true);
+        backButton.setEnabled(true);
+        refreshButton.setEnabled(true);
+    }
+
     private JPanel buildBottomPanel() {
         JPanel bottom = new JPanel(new BorderLayout());
         bottom.setOpaque(false);
@@ -231,8 +432,7 @@ public class ResultsWindow extends JFrame {
             return;
         }
 
-        saveButton.setEnabled(false);
-        refreshButton.setEnabled(false);
+        showProgress("Ukládání dat do tabulky...");
         statusLabel.setText("Ukládání dat...");
         statusLabel.setForeground(UiTheme.TEXT_SECONDARY);
 
@@ -254,23 +454,27 @@ public class ResultsWindow extends JFrame {
                 try {
                     boolean success = get();
                     if (success) {
+                        showSuccess();
                         statusLabel.setText("Data byla úspěšně uložena.");
                         statusLabel.setForeground(UiTheme.SUCCESS);
                     } else {
+                        hideProgress();
                         statusLabel.setText("Chyba při ukládání dat.");
                         statusLabel.setForeground(UiTheme.ERROR);
+                        saveButton.setEnabled(true);
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
+                    hideProgress();
                     statusLabel.setText("Ukládání bylo přerušeno.");
                     statusLabel.setForeground(UiTheme.ERROR);
+                    saveButton.setEnabled(true);
                 } catch (Exception e) {
                     log.error("Error getting save result", e);
+                    hideProgress();
                     statusLabel.setText("Chyba při ukládání dat.");
                     statusLabel.setForeground(UiTheme.ERROR);
-                } finally {
                     saveButton.setEnabled(true);
-                    refreshButton.setEnabled(true);
                 }
             }
         };
@@ -279,12 +483,12 @@ public class ResultsWindow extends JFrame {
     }
 
     private void loadData() {
+        showProgress("Porovnávání souborů a klientů...");
         statusLabel.setText("Načítání dat...");
         statusLabel.setForeground(UiTheme.TEXT_SECONDARY);
+        successfulMatchesModel.setRowCount(0);
         missingReportsModel.setRowCount(0);
         errorsModel.setRowCount(0);
-        saveButton.setEnabled(false);
-        refreshButton.setEnabled(false);
 
         SwingWorker<EvaluationResult, Void> worker = new SwingWorker<>() {
             @Override
@@ -306,6 +510,7 @@ public class ResultsWindow extends JFrame {
 
             @Override
             protected void done() {
+                hideProgress();
                 try {
                     EvaluationResult result = get();
 
@@ -313,14 +518,20 @@ public class ResultsWindow extends JFrame {
                         statusLabel.setText("Chyba: " + result.errorMessage());
                         statusLabel.setForeground(UiTheme.ERROR);
                         saveButton.setEnabled(false);
-                        refreshButton.setEnabled(true);
                         return;
                     }
 
                     lastEvaluatedClients = result.clients();
+                    List<Client> successfulClients = result.clients().stream()
+                            .filter(Client::reportGenerated)
+                            .toList();
                     List<Client> missingClients = result.clients().stream()
                             .filter(c -> !c.reportGenerated())
                             .toList();
+
+                    for (Client client : successfulClients) {
+                        successfulMatchesModel.addRow(new Object[]{client.name(), client.ico()});
+                    }
 
                     for (Client client : missingClients) {
                         missingReportsModel.addRow(new Object[]{client.name(), client.ico()});
@@ -331,9 +542,7 @@ public class ResultsWindow extends JFrame {
                     }
 
                     long totalClients = result.clients().size();
-                    long clientsWithReports = result.clients().stream()
-                            .filter(Client::reportGenerated)
-                            .count();
+                    long clientsWithReports = successfulClients.size();
 
                     String status = String.format(
                             "Zdroj: %s | Celkem: %d | S reporty: %d | Chybějící: %d | Chyby: %d",
@@ -343,11 +552,11 @@ public class ResultsWindow extends JFrame {
                     statusLabel.setText(status);
                     statusLabel.setForeground(UiTheme.TEXT_PRIMARY);
 
-                    tabbedPane.setTitleAt(0, "Chybějící reporty (" + missingClients.size() + ")");
-                    tabbedPane.setTitleAt(1, "Chyby při načítání (" + result.errors().size() + ")");
+                    tabbedPane.setTitleAt(0, "Úspěšné shody (" + successfulClients.size() + ")");
+                    tabbedPane.setTitleAt(1, "Chybějící reporty (" + missingClients.size() + ")");
+                    tabbedPane.setTitleAt(2, "Chyby při načítání (" + result.errors().size() + ")");
 
                     saveButton.setEnabled(!result.clients().isEmpty());
-                    refreshButton.setEnabled(true);
 
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -355,13 +564,11 @@ public class ResultsWindow extends JFrame {
                     statusLabel.setText("Zpracování bylo přerušeno");
                     statusLabel.setForeground(UiTheme.ERROR);
                     saveButton.setEnabled(false);
-                    refreshButton.setEnabled(true);
                 } catch (Exception e) {
                     log.error("Error getting evaluation result", e);
                     statusLabel.setText("Chyba při zpracování výsledků");
                     statusLabel.setForeground(UiTheme.ERROR);
                     saveButton.setEnabled(false);
-                    refreshButton.setEnabled(true);
                 }
             }
         };
