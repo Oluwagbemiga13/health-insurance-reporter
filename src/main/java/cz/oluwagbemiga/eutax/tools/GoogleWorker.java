@@ -182,7 +182,13 @@ public final class GoogleWorker implements SpreadsheetWorker {
                 log.error("Spreadsheet {} or sheet '{}' not found", spreadsheetId, sheetName);
                 throw new FileNotFoundException("Spreadsheet or sheet not found: " + spreadsheetId);
             }
-            log.error("Google API error while reading spreadsheet {}", spreadsheetId, ex);
+            // For non-404 Google API errors (for example 403 Forbidden) propagate a clear runtime
+            // exception so the calling UI can show a meaningful error message to the user.
+            String details = ex.getDetails() != null
+                    ? ex.getDetails().getMessage() + " (code=" + ex.getDetails().getCode() + ")"
+                    : ex.getMessage();
+            log.error("Google API error while reading spreadsheet {}: {}", spreadsheetId, details, ex);
+            throw new RuntimeException("Google API error while reading spreadsheet " + spreadsheetId + ": " + details, ex);
         } catch (IOException ex) {
             log.error("I/O error while reading spreadsheet {}", spreadsheetId, ex);
         }
@@ -253,21 +259,50 @@ public final class GoogleWorker implements SpreadsheetWorker {
         Set<String> icoLookup = Set.copyOf(icoList);
         List<ValueRange> updates = new ArrayList<>();
         int rowNumber = DATA_START_ROW;
+
+        int resetCount = 0;
+        int setTrueCount = 0;
+        int ignoredCount = 0;
+
         for (List<Object> row : rows) {
+            // Read raw value from column G (index 6) to detect explicit "NE"
+            String reportRaw = getCellValueAsString(row, 6);
+            if (reportRaw != null && "NE".equalsIgnoreCase(reportRaw.trim())) {
+                ignoredCount++;
+                rowNumber++;
+                continue;
+            }
+
+            // Determine previous boolean value and desired final value
+            boolean previous = getCellValueAsBoolean(row, 6);
+
             String ico = getCellValueAsString(row, 1).trim();
-            if (!ico.isEmpty() && icoLookup.contains(ico)) {
+            boolean desired = !ico.isEmpty() && icoLookup.contains(ico);
+
+            // If previous was true and desired is false -> reset
+            if (previous && !desired) {
+                resetCount++;
+            }
+            // If previous was false and desired is true -> set true
+            if (!previous && desired) {
+                setTrueCount++;
+            }
+
+            // Only prepare an update if the final desired value differs from current
+            if (previous != desired) {
                 updates.add(
                         new ValueRange()
                                 .setRange(singleCellRange(sheetName, "G", rowNumber))
-                                .setValues(List.of(List.of(true)))
+                                .setValues(List.of(List.of(desired)))
                 );
-                log.debug("Prepared Google Sheets update for ICO {} at row {}", ico, rowNumber);
+                log.debug("Prepared update for row {} ICO '{}' -> {}", rowNumber, ico, desired);
             }
+
             rowNumber++;
         }
 
         if (updates.isEmpty()) {
-            log.info("No matching ICO entries found in sheet '{}'", sheetName);
+            log.info("No matching ICO entries needed updating in sheet '{}'; ignored {} 'NE' rows", sheetName, ignoredCount);
             return;
         }
 
@@ -277,7 +312,8 @@ public final class GoogleWorker implements SpreadsheetWorker {
                         .setData(updates);
 
         sheets.spreadsheets().values().batchUpdate(spreadsheetId, request).execute();
-        log.info("Updated {} clients in sheet '{}'", updates.size(), sheetName);
+        log.info("Updated sheet '{}' — reset {} to false, set {} to true, ignored {} 'NE' rows ({} API updates)",
+                sheetName, resetCount, setTrueCount, ignoredCount, updates.size());
     }
 
     /**

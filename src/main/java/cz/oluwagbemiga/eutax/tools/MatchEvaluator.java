@@ -1,9 +1,6 @@
 package cz.oluwagbemiga.eutax.tools;
 
-import cz.oluwagbemiga.eutax.pojo.Client;
-import cz.oluwagbemiga.eutax.pojo.CzechMonth;
-import cz.oluwagbemiga.eutax.pojo.ParsedFileName;
-import cz.oluwagbemiga.eutax.pojo.WalkerResult;
+import cz.oluwagbemiga.eutax.pojo.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -12,6 +9,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -81,23 +79,22 @@ public class MatchEvaluator {
             );
         }
 
-        // Create a map of ICO -> LocalDate for the target month
+        // Create a map of ICO -> Set<InsuranceCompany> for the target month
         int targetYear = LocalDate.now().getYear();
         int targetMonth = month.getMonthNumber();
 
-        Map<String, LocalDate> icoToReportDate = parsedFiles.stream()
+        Map<String, Set<InsuranceCompany>> icoToInsurers = parsedFiles.stream()
                 .filter(pf -> pf.date().getYear() == targetYear
                         && pf.date().getMonthValue() == targetMonth)
-                .collect(Collectors.toMap(
+                .collect(Collectors.groupingBy(
                         ParsedFileName::ico,
-                        ParsedFileName::date,
-                        (existing, replacement) -> existing // Keep first occurrence if duplicates
+                        Collectors.mapping(ParsedFileName::insuranceCompany, Collectors.toSet())
                 ));
 
-        log.info("Found {} reports matching year {} and month {}",
-                icoToReportDate.size(), targetYear, targetMonth);
+        log.info("Found {} reports (by ICO) matching year {} and month {}",
+                icoToInsurers.size(), targetYear, targetMonth);
 
-        return updateClientsWithMatches(clients, icoToReportDate);
+        return updateClientsWithMatches(clients, icoToInsurers);
     }
 
     /**
@@ -136,34 +133,38 @@ public class MatchEvaluator {
             );
         }
 
-        Map<String, LocalDate> icoToReportDate = parsedFiles.stream()
+        Map<String, Set<InsuranceCompany>> icoToInsurers = parsedFiles.stream()
                 .filter(pf -> pf.date().getYear() == year
                         && pf.date().getMonthValue() == month.getMonthNumber())
-                .collect(Collectors.toMap(
+                .collect(Collectors.groupingBy(
                         ParsedFileName::ico,
-                        ParsedFileName::date,
-                        (existing, replacement) -> existing
+                        Collectors.mapping(ParsedFileName::insuranceCompany, Collectors.toSet())
                 ));
 
-        log.info("Found {} reports matching year {} and month {}",
-                icoToReportDate.size(), year, month.getMonthNumber());
+        log.info("Found {} reports (by ICO) matching year {} and month {}",
+                icoToInsurers.size(), year, month.getMonthNumber());
 
-        return updateClientsWithMatches(clients, icoToReportDate);
+        return updateClientsWithMatches(clients, icoToInsurers);
     }
 
     /**
-     * Updates the {@code reportGenerated} status for each client based on whether their ICO
-     * exists in the provided report date map.
+     * Updates the {@code reportGenerated} status for each client based on whether all their required
+     * insurance companies exist in the provided report insurer map for their ICO.
      *
-     * @param clients         the original list of clients from the spreadsheet
-     * @param icoToReportDate a map of ICO numbers to their corresponding report dates
+     * @param clients       the original list of clients from the spreadsheet
+     * @param icoToInsurers a map of ICO numbers to the set of insurers available for that ICO in the target month
      * @return a new list of clients with updated {@code reportGenerated} status
      */
-    private List<Client> updateClientsWithMatches(List<Client> clients, Map<String, LocalDate> icoToReportDate) {
-        log.debug("Updating {} clients with {} available reports", clients.size(), icoToReportDate.size());
+    private List<Client> updateClientsWithMatches(List<Client> clients, Map<String, Set<InsuranceCompany>> icoToInsurers) {
+        log.debug("Updating {} clients with {} available report-insurer entries", clients.size(), icoToInsurers.size());
         List<Client> updatedClients = new ArrayList<>();
         for (Client client : clients) {
-            boolean hasReport = icoToReportDate.containsKey(client.ico());
+            boolean hasReport = false;
+            Set<InsuranceCompany> available = icoToInsurers.get(client.ico());
+            if (available != null && client.insuranceCompanies() != null && !client.insuranceCompanies().isEmpty()) {
+                hasReport = available.containsAll(client.insuranceCompanies());
+            }
+
             updatedClients.add(new Client(
                     client.name(),
                     client.ico(),
@@ -171,8 +172,8 @@ public class MatchEvaluator {
                     client.insuranceCompanies()
             ));
 
-            log.debug("Client {}: ICO={}, Report={}",
-                    client.name(), client.ico(), hasReport);
+            log.debug("Client {}: ICO={}, Report={}, RequiredInsurers={} AvailableInsurers={} ",
+                    client.name(), client.ico(), hasReport, client.insuranceCompanies(), available);
         }
 
         long withReports = updatedClients.stream()

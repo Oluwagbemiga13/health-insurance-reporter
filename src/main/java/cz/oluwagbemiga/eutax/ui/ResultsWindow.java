@@ -13,7 +13,12 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 import java.awt.*;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 /**
  * Window that displays the results of the match evaluation.
@@ -29,6 +34,9 @@ public class ResultsWindow extends JFrame {
     private final DefaultTableModel successfulMatchesModel;
     private final DefaultTableModel missingReportsModel;
     private final DefaultTableModel errorsModel;
+    // New model for parsed files that are not present in the clients table
+    private final DefaultTableModel missingInTableModel;
+
     private final JLabel statusLabel = new JLabel(" ");
     private JButton saveButton;
     private JButton backButton;
@@ -37,6 +45,7 @@ public class ResultsWindow extends JFrame {
     private JTable successfulTable;
     private JTable missingTable;
     private JTable errorsTable;
+    private JTable missingInTable;
     private List<Client> lastEvaluatedClients = List.of();
 
     // Progress components
@@ -64,7 +73,8 @@ public class ResultsWindow extends JFrame {
             }
         };
 
-        missingReportsModel = new DefaultTableModel(new String[]{"Jméno klienta", "IČO"}, 0) {
+        // Add third column to show which insurers are missing
+        missingReportsModel = new DefaultTableModel(new String[]{"Jméno klienta", "IČO", "Chybějící pojišťovny"}, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return false;
@@ -72,6 +82,14 @@ public class ResultsWindow extends JFrame {
         };
 
         errorsModel = new DefaultTableModel(new String[]{"Název souboru", "Chyba"}, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        // New model: parsed files that don't have corresponding client in the spreadsheet
+        missingInTableModel = new DefaultTableModel(new String[]{"Soubor", "IČO", "Pojišťovna"}, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return false;
@@ -155,6 +173,8 @@ public class ResultsWindow extends JFrame {
         styleTable(missingTable);
         missingTable.getColumnModel().getColumn(0).setPreferredWidth(280);
         missingTable.getColumnModel().getColumn(1).setPreferredWidth(120);
+        // third column for missing insurers
+        missingTable.getColumnModel().getColumn(2).setPreferredWidth(300);
 
         JScrollPane missingScroll = new JScrollPane(missingTable);
         missingScroll.setBorder(BorderFactory.createLineBorder(UiTheme.BORDER_COLOR));
@@ -175,6 +195,22 @@ public class ResultsWindow extends JFrame {
         errorsScroll.setBorder(BorderFactory.createLineBorder(UiTheme.BORDER_COLOR));
         errorsPanel.add(errorsScroll, BorderLayout.CENTER);
         tabbedPane.addTab("Chyby při načítání", errorsPanel);
+
+        // New tab: parsed files that are missing in the spreadsheet table
+        JPanel missingInPanel = new JPanel(new BorderLayout());
+        missingInPanel.setOpaque(false);
+        missingInPanel.setBorder(new EmptyBorder(UiTheme.SPACING_SM, UiTheme.SPACING_SM, UiTheme.SPACING_SM, UiTheme.SPACING_SM));
+
+        missingInTable = new JTable(missingInTableModel);
+        styleTable(missingInTable);
+        missingInTable.getColumnModel().getColumn(0).setPreferredWidth(360); // file path
+        missingInTable.getColumnModel().getColumn(1).setPreferredWidth(120); // ico
+        missingInTable.getColumnModel().getColumn(2).setPreferredWidth(160); // insurer
+
+        JScrollPane missingInScroll = new JScrollPane(missingInTable);
+        missingInScroll.setBorder(BorderFactory.createLineBorder(UiTheme.BORDER_COLOR));
+        missingInPanel.add(missingInScroll, BorderLayout.CENTER);
+        tabbedPane.addTab("Chybí v tabulce", missingInPanel);
 
         contentCard.add(tabbedPane, BorderLayout.CENTER);
 
@@ -441,50 +477,77 @@ public class ResultsWindow extends JFrame {
         statusLabel.setText("Ukládání dat...");
         statusLabel.setForeground(UiTheme.TEXT_SECONDARY);
 
-        SwingWorker<Boolean, Void> worker = new SwingWorker<>() {
-            @Override
-            protected Boolean doInBackground() {
-                try {
-                    SpreadsheetWorker spreadsheetWorker = SpreadsheetWorkerFactory.create(spreadsheetSource);
-                    spreadsheetWorker.updateReportGeneratedStatus(spreadsheetSource.identifier(), lastEvaluatedClients, month);
-                    return true;
-                } catch (Exception e) {
-                    log.error("Error saving data", e);
-                    return false;
-                }
-            }
+        AtomicReference<String> saveErrorMsg = new AtomicReference<>();
 
-            @Override
-            protected void done() {
-                try {
-                    boolean success = get();
-                    if (success) {
-                        showSuccess();
-                        statusLabel.setText("Data byla úspěšně uložena.");
-                        statusLabel.setForeground(UiTheme.SUCCESS);
-                    } else {
-                        hideProgress();
-                        statusLabel.setText("Chyba při ukládání dat.");
-                        statusLabel.setForeground(UiTheme.ERROR);
-                        saveButton.setEnabled(true);
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    hideProgress();
-                    statusLabel.setText("Ukládání bylo přerušeno.");
-                    statusLabel.setForeground(UiTheme.ERROR);
-                    saveButton.setEnabled(true);
-                } catch (Exception e) {
-                    log.error("Error getting save result", e);
-                    hideProgress();
-                    statusLabel.setText("Chyba při ukládání dat.");
-                    statusLabel.setForeground(UiTheme.ERROR);
-                    saveButton.setEnabled(true);
-                }
-            }
-        };
+         SwingWorker<Boolean, Void> worker = new SwingWorker<>() {
+             @Override
+             protected Boolean doInBackground() {
+                 try {
+                     SpreadsheetWorker spreadsheetWorker = SpreadsheetWorkerFactory.create(spreadsheetSource);
+                     spreadsheetWorker.updateReportGeneratedStatus(spreadsheetSource.identifier(), lastEvaluatedClients, month);
+                     return true;
+                 } catch (Exception e) {
+                     log.error("Error saving data", e);
+                     saveErrorMsg.set(e.getMessage());
+                     return false;
+                 }
+             }
 
-        worker.execute();
+             @Override
+             protected void done() {
+                 try {
+                     boolean success = get();
+                     if (success) {
+                         showSuccess();
+                         statusLabel.setText("Data byla úspěšně uložena.");
+                         statusLabel.setForeground(UiTheme.SUCCESS);
+                     } else {
+                         hideProgress();
+                         statusLabel.setText("Chyba při ukládání dat.");
+                         statusLabel.setForeground(UiTheme.ERROR);
+                         saveButton.setEnabled(true);
+                         String msg = saveErrorMsg.get();
+                         if (msg != null && !msg.isBlank()) {
+                             if (msg.contains("Google API error")) {
+                                 String cz = "Nepodařilo se uložit změny do Google tabulky.\n" +
+                                         "Důvod: " + msg + "\n\n" +
+                                         "Doporučení: Zkontrolujte, že služební účet má přístup k tabulce (sdílejte tabulku s e‑mailem servisního účtu)\n" +
+                                         "a že je povoleno Google Sheets API.";
+                                 JOptionPane.showMessageDialog(ResultsWindow.this, cz, "Chyba při ukládání", JOptionPane.ERROR_MESSAGE);
+                             } else {
+                                 JOptionPane.showMessageDialog(ResultsWindow.this, "Chyba při ukládání: " + msg, "Chyba při ukládání", JOptionPane.ERROR_MESSAGE);
+                             }
+                         }
+                     }
+                 } catch (InterruptedException e) {
+                     Thread.currentThread().interrupt();
+                     hideProgress();
+                     statusLabel.setText("Ukládání bylo přerušeno.");
+                     statusLabel.setForeground(UiTheme.ERROR);
+                     saveButton.setEnabled(true);
+                 } catch (Exception e) {
+                     log.error("Error getting save result", e);
+                     hideProgress();
+                     statusLabel.setText("Chyba při ukládání dat.");
+                     statusLabel.setForeground(UiTheme.ERROR);
+                     saveButton.setEnabled(true);
+                     String msg = e.getMessage();
+                     if (msg != null && !msg.isBlank()) {
+                         if (msg.contains("Google API error")) {
+                             String cz = "Nepodařilo se uložit změny do Google tabulky.\n" +
+                                     "Důvod: " + msg + "\n\n" +
+                                     "Doporučení: Zkontrolujte, že služební účet má přístup k tabulce (sdílejte tabulku s e‑mailem servisního účtu)\n" +
+                                     "a že je povoleno Google Sheets API.";
+                             JOptionPane.showMessageDialog(ResultsWindow.this, cz, "Chyba při ukládání", JOptionPane.ERROR_MESSAGE);
+                         } else {
+                             JOptionPane.showMessageDialog(ResultsWindow.this, "Chyba při ukládání: " + msg, "Chyba při ukládání", JOptionPane.ERROR_MESSAGE);
+                         }
+                     }
+                 }
+             }
+         };
+
+         worker.execute();
     }
 
     private void loadData() {
@@ -494,6 +557,7 @@ public class ResultsWindow extends JFrame {
         successfulMatchesModel.setRowCount(0);
         missingReportsModel.setRowCount(0);
         errorsModel.setRowCount(0);
+        missingInTableModel.setRowCount(0);
 
         SwingWorker<EvaluationResult, Void> worker = new SwingWorker<>() {
             @Override
@@ -506,10 +570,10 @@ public class ResultsWindow extends JFrame {
                     List<Client> clients = evaluator.evaluateMatches(spreadsheetSource.identifier(), folderPath, month);
                     WalkerResult walkerResult = infoFromFiles.readReports(folderPath);
 
-                    return new EvaluationResult(clients, walkerResult.errorReports(), null);
+                    return new EvaluationResult(clients, walkerResult.errorReports(), null, walkerResult.parsedFileNames());
                 } catch (Exception e) {
                     log.error("Error during evaluation", e);
-                    return new EvaluationResult(List.of(), List.of(), e.getMessage());
+                    return new EvaluationResult(List.of(), List.of(), e.getMessage(), List.of());
                 }
             }
 
@@ -520,6 +584,19 @@ public class ResultsWindow extends JFrame {
                     EvaluationResult result = get();
 
                     if (result.errorMessage() != null) {
+                        // If the evaluator returned an error message coming from Google API propagate
+                        // it as an error dialog so the user sees the detailed message.
+                        if (result.errorMessage().contains("Google API error")) {
+                            String details = result.errorMessage();
+                            String cz = "Nepodařilo se načíst Google tabulku.\n" +
+                                    "Důvod: " + details + "\n\n" +
+                                    "Doporučení: Zkontrolujte, že služební účet má přístup k tabulce (sdílejte tabulku s e‑mailem servisního účtu)\n" +
+                                    "a že je povoleno Google Sheets API."
+                                    ;
+                            JOptionPane.showMessageDialog(ResultsWindow.this,
+                                    cz,
+                                    "Chyba při čtení tabulky", JOptionPane.ERROR_MESSAGE);
+                        }
                         statusLabel.setText("Chyba: " + result.errorMessage());
                         statusLabel.setForeground(UiTheme.ERROR);
                         saveButton.setEnabled(false);
@@ -534,12 +611,49 @@ public class ResultsWindow extends JFrame {
                             .filter(c -> !c.reportGenerated())
                             .toList();
 
+                    // Build ICO -> available insurers map for the same target month/year used during evaluation
+                    int targetYear = LocalDate.now().getYear();
+                    int targetMonth = month.getMonthNumber();
+                    Map<String, Set<InsuranceCompany>> icoToInsurers = result.parsedFiles().stream()
+                            .filter(pf -> pf.date().getYear() == targetYear && pf.date().getMonthValue() == targetMonth)
+                            .collect(Collectors.groupingBy(
+                                    ParsedFileName::ico,
+                                    Collectors.mapping(ParsedFileName::insuranceCompany, Collectors.toSet())
+                            ));
+
                     for (Client client : successfulClients) {
                         successfulMatchesModel.addRow(new Object[]{client.name(), client.ico()});
                     }
 
                     for (Client client : missingClients) {
-                        missingReportsModel.addRow(new Object[]{client.name(), client.ico()});
+                        // Compute which insurers are missing for this client
+                        String missingInsurers;
+                        if (client.insuranceCompanies() == null || client.insuranceCompanies().isEmpty()) {
+                            missingInsurers = "";
+                        } else {
+                            Set<InsuranceCompany> available = icoToInsurers.get(client.ico());
+                            String joined = client.insuranceCompanies().stream()
+                                    .filter(req -> available == null || !available.contains(req))
+                                    .map(InsuranceCompany::toString)
+                                    .collect(Collectors.joining(", "));
+                            missingInsurers = joined;
+                        }
+
+                        missingReportsModel.addRow(new Object[]{client.name(), client.ico(), missingInsurers});
+                    }
+
+                    // Identify parsed files that don't have a corresponding client in the table
+                    Set<String> clientIcos = result.clients().stream()
+                            .map(Client::ico)
+                            .collect(Collectors.toSet());
+
+                    List<ParsedFileName> missingInTable = result.parsedFiles().stream()
+                            .filter(pf -> pf.date().getYear() == targetYear && pf.date().getMonthValue() == targetMonth)
+                            .filter(pf -> !clientIcos.contains(pf.ico()))
+                            .toList();
+
+                    for (ParsedFileName pf : missingInTable) {
+                        missingInTableModel.addRow(new Object[]{pf.filePath(), pf.ico(), pf.insuranceCompany().toString()});
                     }
 
                     for (ErrorReport error : result.errors()) {
@@ -550,9 +664,9 @@ public class ResultsWindow extends JFrame {
                     long clientsWithReports = successfulClients.size();
 
                     String status = String.format(
-                            "Zdroj: %s | Celkem: %d | S reporty: %d | Chybějící: %d | Chyby: %d",
+                            "Zdroj: %s | Celkem: %d | S reporty: %d | Chybějící: %d | Chyby: %d | Chybí v tabulce: %d",
                             spreadsheetSource.type(), totalClients, clientsWithReports,
-                            missingClients.size(), result.errors().size()
+                            missingClients.size(), result.errors().size(), missingInTable.size()
                     );
                     statusLabel.setText(status);
                     statusLabel.setForeground(UiTheme.TEXT_PRIMARY);
@@ -560,6 +674,7 @@ public class ResultsWindow extends JFrame {
                     tabbedPane.setTitleAt(0, "Úspěšné shody (" + successfulClients.size() + ")");
                     tabbedPane.setTitleAt(1, "Chybějící reporty (" + missingClients.size() + ")");
                     tabbedPane.setTitleAt(2, "Chyby při načítání (" + result.errors().size() + ")");
+                    tabbedPane.setTitleAt(3, "Chybí v tabulce (" + missingInTable.size() + ")");
 
                     saveButton.setEnabled(!result.clients().isEmpty());
 
@@ -571,20 +686,33 @@ public class ResultsWindow extends JFrame {
                     saveButton.setEnabled(false);
                 } catch (Exception e) {
                     log.error("Error getting evaluation result", e);
-                    statusLabel.setText("Chyba při zpracování výsledků");
-                    statusLabel.setForeground(UiTheme.ERROR);
-                    saveButton.setEnabled(false);
-                }
-            }
-        };
+                    // If the evaluation threw a runtime exception with a message from the Google API
+                    // show it to the user — this typically carries the API's 'forbidden' message.
+                    String msg = e.getMessage();
+                    if (msg != null && msg.contains("Google API error")) {
+                        String cz = "Nepodařilo se načíst Google tabulku.\n" +
+                                "Důvod: " + msg + "\n\n" +
+                                "Doporučení: Zkontrolujte, že služební účet má přístup k tabulce (sdílejte tabulku s e‑mailem servisního účtu)\n" +
+                                "a že je povoleno Google Sheets API.";
+                        JOptionPane.showMessageDialog(ResultsWindow.this,
+                                cz, "Chyba při čtení tabulky", JOptionPane.ERROR_MESSAGE);
+                    }
+                     statusLabel.setText("Chyba při zpracování výsledků");
+                     statusLabel.setForeground(UiTheme.ERROR);
+                     saveButton.setEnabled(false);
+                 }
+             }
+         };
 
-        worker.execute();
-    }
+         worker.execute();
+     }
 
-    private record EvaluationResult(
-            List<Client> clients,
-            List<ErrorReport> errors,
-            String errorMessage
-    ) {
-    }
-}
+     private record EvaluationResult(
+             List<Client> clients,
+             List<ErrorReport> errors,
+             String errorMessage,
+             List<ParsedFileName> parsedFiles
+     ) {
+     }
+ }
+

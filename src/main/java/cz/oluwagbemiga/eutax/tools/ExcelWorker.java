@@ -264,7 +264,9 @@ public class ExcelWorker implements SpreadsheetWorker {
 
             log.info("Updating sheet '{}' in file: {}", month.getCzechName(), filePath);
 
-            int updatedCount = 0;
+            int resetCount = 0;
+            int setTrueCount = 0;
+            int ignoredCount = 0;
 
             // Skip the header row (row 0) and start updating from row 1
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
@@ -277,29 +279,50 @@ public class ExcelWorker implements SpreadsheetWorker {
                 Cell icoCell = row.getCell(1);
                 String ico = getCellValueAsString(icoCell);
 
+                // Column G (index 6): Report Generated (raw string to detect "NE")
+                Cell reportGeneratedCell = row.getCell(6);
+                String reportRaw = getCellValueAsString(reportGeneratedCell);
+
+                // If the cell explicitly contains "NE" (case-insensitive), leave it unchanged and skip
+                if (reportRaw != null && "NE".equalsIgnoreCase(reportRaw.trim())) {
+                    ignoredCount++;
+                    continue;
+                }
+
+                // Ensure the reportGeneratedCell exists so we can set boolean values
+                if (reportGeneratedCell == null) {
+                    reportGeneratedCell = row.createCell(6);
+                }
+
+                // First, reset non-NE cells to false (this will overwrite previous true values)
+                boolean previousValue = getCellValueAsBoolean(reportGeneratedCell);
+                if (previousValue) {
+                    reportGeneratedCell.setCellValue(false);
+                    resetCount++;
+                    log.debug("Reset row {} ICO '{}' reportGenerated from true to false", i, ico != null ? ico.trim() : "");
+                } else {
+                    // If it wasn't true before, we still ensure it's set to false (for consistent typing)
+                    reportGeneratedCell.setCellValue(false);
+                }
+
+                // If ICO is in the set of clients that should have reportGenerated=true, set it to true
                 if (ico != null && !ico.trim().isEmpty() && icoSet.contains(ico.trim())) {
-                     // Column G (index 6): Report Generated
-                     Cell reportGeneratedCell = row.getCell(6);
+                    reportGeneratedCell.setCellValue(true);
+                    setTrueCount++;
+                    log.debug("Set row {} ICO '{}' reportGenerated to: true", i, ico.trim());
+                }
+            }
 
-                     if (reportGeneratedCell == null) {
-                         reportGeneratedCell = row.createCell(6);
-                     }
-
-                     reportGeneratedCell.setCellValue(true);
-                     updatedCount++;
-                     log.debug("Updated ICO '{}' reportGenerated to: true", ico.trim());
-                 }
-             }
-
-            if (updatedCount > 0) {
-                log.info("Successfully updated {} clients in sheet '{}'", updatedCount, month.getCzechName());
+            if (resetCount > 0 || setTrueCount > 0) {
+                log.info("Reset {} cells to false, set {} cells to true, ignored {} 'NE' rows in sheet '{}'",
+                        resetCount, setTrueCount, ignoredCount, month.getCzechName());
 
                 // Write the changes back to the file
                 try (FileOutputStream fos = new FileOutputStream(file)) {
                     workbook.write(fos);
                 }
             } else {
-                log.info("No clients needed updating in sheet '{}" , month.getCzechName());
+                log.info("No clients needed updating in sheet '{}'; ignored {} 'NE' rows", month.getCzechName(), ignoredCount);
             }
 
         } catch (IOException e) {
