@@ -2,6 +2,7 @@ package cz.oluwagbemiga.eutax.tools;
 
 import cz.oluwagbemiga.eutax.pojo.Client;
 import cz.oluwagbemiga.eutax.pojo.CzechMonth;
+import cz.oluwagbemiga.eutax.pojo.InsuranceCompany;
 import cz.oluwagbemiga.eutax.pojo.ParsedFileName;
 import cz.oluwagbemiga.eutax.pojo.WalkerResult;
 import org.junit.jupiter.api.Test;
@@ -33,10 +34,10 @@ class MatchEvaluatorTest {
         }
     }
 
-    static class IcoFromFilesStub extends IcoFromFiles {
+    static class InfoFromFilesStub extends InfoFromFiles {
         private final WalkerResult result;
 
-        IcoFromFilesStub(WalkerResult result) {
+        InfoFromFilesStub(WalkerResult result) {
             this.result = result;
         }
 
@@ -50,24 +51,24 @@ class MatchEvaluatorTest {
     void evaluateMatches_filtersByYearAndMonth_andSetsFlags() throws Exception {
         // Given
         List<Client> clients = List.of(
-                new Client("Klient A s.r.o", "00000001", false),
-                new Client("Klient B s.r.o", "00000002", false),
-                new Client("Klient C a.s.", "00000003", false)
+                new Client("Klient A s.r.o", "00000001", false, List.of()),
+                new Client("Klient B s.r.o", "00000002", false, List.of()),
+                new Client("Klient C a.s.", "00000003", false, List.of())
         );
         int year = 2025;
         CzechMonth month = CzechMonth.LEDEN; // January
 
         List<ParsedFileName> parsed = List.of(
-                new ParsedFileName("00000001", LocalDate.of(year, month.getMonthNumber(), 15)), // match
-                new ParsedFileName("00000002", LocalDate.of(year, month.getMonthNumber(), 20)), // match
-                new ParsedFileName("00000003", LocalDate.of(year, month.getMonthNumber() == 12 ? 1 : month.getMonthNumber() + 1, 1)), // different month
-                new ParsedFileName("00000001", LocalDate.of(year, month.getMonthNumber(), 16)) // duplicate ICO same month
+                new ParsedFileName("00000001", LocalDate.of(year, month.getMonthNumber(), 15), InsuranceCompany.CPZP, ""), // match
+                new ParsedFileName("00000002", LocalDate.of(year, month.getMonthNumber(), 20), InsuranceCompany.CPZP, ""), // match
+                new ParsedFileName("00000003", LocalDate.of(year, month.getMonthNumber() == 12 ? 1 : month.getMonthNumber() + 1, 1), InsuranceCompany.CPZP, ""), // different month
+                new ParsedFileName("00000001", LocalDate.of(year, month.getMonthNumber(), 16), InsuranceCompany.CPZP, "") // duplicate ICO same month
         );
         WalkerResult walkerResult = new WalkerResult(parsed, List.of());
 
         MatchEvaluator evaluator = new MatchEvaluator(
                 new SpreadsheetWorkerStub(clients),
-                new IcoFromFilesStub(walkerResult)
+                new InfoFromFilesStub(walkerResult)
         );
 
         // When
@@ -87,11 +88,11 @@ class MatchEvaluatorTest {
     @Test
     void evaluateMatches_noReports_marksAllFalse() throws Exception {
         List<Client> clients = List.of(
-                new Client("Klient A s.r.o", "00000001", true), // input irrelevant, should be recalculated
-                new Client("Klient B s.r.o", "00000002", true)
+                new Client("Klient A s.r.o", "00000001", true, List.of()), // input irrelevant, should be recalculated
+                new Client("Klient B s.r.o", "00000002", true, List.of())
         );
         WalkerResult empty = new WalkerResult(List.of(), List.of());
-        MatchEvaluator evaluator = new MatchEvaluator(new SpreadsheetWorkerStub(clients), new IcoFromFilesStub(empty));
+        MatchEvaluator evaluator = new MatchEvaluator(new SpreadsheetWorkerStub(clients), new InfoFromFilesStub(empty));
 
         List<Client> updated = evaluator.evaluateMatches("ignored", "ignoredDir", CzechMonth.UNOR, 2024);
 
@@ -102,15 +103,15 @@ class MatchEvaluatorTest {
 
     @Test
     void evaluateMatches_filtersOutDifferentYear() throws Exception {
-        List<Client> clients = List.of(new Client("Klient A s.r.o", "00000001", false));
+        List<Client> clients = List.of(new Client("Klient A s.r.o", "00000001", false, List.of()));
         int year = 2025;
         CzechMonth month = CzechMonth.BREZEN;
         List<ParsedFileName> parsed = new ArrayList<>();
-        parsed.add(new ParsedFileName("00000001", LocalDate.of(year - 1, month.getMonthNumber(), 10))); // different year
-        parsed.add(new ParsedFileName("00000001", LocalDate.of(year, month.getMonthNumber(), 10))); // matching
+        parsed.add(new ParsedFileName("00000001", LocalDate.of(year - 1, month.getMonthNumber(), 10), InsuranceCompany.CPZP, "")); // different year
+        parsed.add(new ParsedFileName("00000001", LocalDate.of(year, month.getMonthNumber(), 10), InsuranceCompany.CPZP, "")); // matching
         WalkerResult wr = new WalkerResult(parsed, List.of());
 
-        MatchEvaluator evaluator = new MatchEvaluator(new SpreadsheetWorkerStub(clients), new IcoFromFilesStub(wr));
+        MatchEvaluator evaluator = new MatchEvaluator(new SpreadsheetWorkerStub(clients), new InfoFromFilesStub(wr));
         List<Client> updated = evaluator.evaluateMatches("ignored", "ignoredDir", month, year);
 
         assertEquals(1, updated.size());
@@ -122,18 +123,18 @@ class MatchEvaluatorTest {
         int currentYear = LocalDate.now().getYear();
         CzechMonth targetMonth = CzechMonth.LISTOPAD; // arbitrary month
         List<Client> clients = List.of(
-                new Client("One", "11111111", false),
-                new Client("Two", "22222222", false)
+                new Client("One", "11111111", false, List.of()),
+                new Client("Two", "22222222", false, List.of())
         );
 
         List<ParsedFileName> parsed = List.of(
-                new ParsedFileName("11111111", LocalDate.of(currentYear, targetMonth.getMonthNumber(), 5)), // match
-                new ParsedFileName("22222222", LocalDate.of(currentYear - 1, targetMonth.getMonthNumber(), 5)) // different year -> no match
+                new ParsedFileName("11111111", LocalDate.of(currentYear, targetMonth.getMonthNumber(), 5), InsuranceCompany.CPZP, ""), // match
+                new ParsedFileName("22222222", LocalDate.of(currentYear - 1, targetMonth.getMonthNumber(), 5), InsuranceCompany.CPZP, "") // different year -> no match
         );
 
         MatchEvaluator evaluator = new MatchEvaluator(
                 new SpreadsheetWorkerStub(clients),
-                new IcoFromFilesStub(new WalkerResult(parsed, List.of()))
+                new InfoFromFilesStub(new WalkerResult(parsed, List.of()))
         );
 
         List<Client> updated = evaluator.evaluateMatches("ignored", "ignoredDir", targetMonth);

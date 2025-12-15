@@ -116,9 +116,9 @@ class ExcelWorkerTest {
         // Create updated clients - note: method only sets values TO true, never to false
         // So clients with reportGenerated=false in the list will be ignored
         List<Client> updatedClients = List.of(
-                new Client("Klient A s.r.o", "00000001", true),   // Already true, should stay true
-                new Client("Klient 2 s.r.o", "00000002", true),   // Already true, should stay true
-                new Client("Další klient a.s.", "00000003", true) // Already true, should stay true
+                new Client("Klient A s.r.o", "00000001", true, List.of()),   // Already true, should stay true
+                new Client("Klient 2 s.r.o", "00000002", true, List.of()),   // Already true, should stay true
+                new Client("Další klient a.s.", "00000003", true, List.of()) // Already true, should stay true
         );
 
         // Update the file
@@ -156,8 +156,8 @@ class ExcelWorkerTest {
         // Only update one client with reportGenerated=true
         // Note: method ignores clients with reportGenerated=false
         List<Client> partialUpdate = List.of(
-                new Client("Klient A s.r.o", "00000001", true)
-        );
+                new Client("Klient A s.r.o", "00000001", true, List.of())
+         );
 
         // Update the file
         excelWorker.updateReportGeneratedStatus(filePath, partialUpdate, CzechMonth.UNOR);
@@ -192,8 +192,8 @@ class ExcelWorkerTest {
 
         // Update third client to true
         List<Client> updateClients = List.of(
-                new Client("Další klient a.s.", "00000003", true)
-        );
+                new Client("Další klient a.s.", "00000003", true, List.of())
+         );
 
         // Update the file
         excelWorker.updateReportGeneratedStatus(filePath, updateClients, CzechMonth.LEDEN);
@@ -212,7 +212,7 @@ class ExcelWorkerTest {
     @Test
     void testUpdateReportGeneratedStatus_FileNotFound() {
         ExcelWorker excelWorker = new ExcelWorker();
-        List<Client> clients = List.of(new Client("Test", "12345678", true));
+        List<Client> clients = List.of(new Client("Test", "12345678", true, List.of()));
 
         assertThrows(FileNotFoundException.class, () -> {
             excelWorker.updateReportGeneratedStatus("nonexistent.xlsx", clients, CzechMonth.LEDEN);

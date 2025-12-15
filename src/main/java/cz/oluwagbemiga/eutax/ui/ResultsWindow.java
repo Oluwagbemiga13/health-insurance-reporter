@@ -1,7 +1,7 @@
 package cz.oluwagbemiga.eutax.ui;
 
 import cz.oluwagbemiga.eutax.pojo.*;
-import cz.oluwagbemiga.eutax.tools.IcoFromFiles;
+import cz.oluwagbemiga.eutax.tools.InfoFromFiles;
 import cz.oluwagbemiga.eutax.tools.MatchEvaluator;
 import cz.oluwagbemiga.eutax.tools.SpreadsheetWorker;
 import cz.oluwagbemiga.eutax.tools.SpreadsheetWorkerFactory;
@@ -54,7 +54,7 @@ public class ResultsWindow extends JFrame {
 
         UiTheme.apply();
         setTitle("Výsledky kontroly - " + month.getCzechName());
-        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         AppIconProvider.apply(this);
 
         successfulMatchesModel = new DefaultTableModel(new String[]{"Jméno klienta", "IČO"}, 0) {
@@ -266,6 +266,20 @@ public class ResultsWindow extends JFrame {
         panel.add(Box.createVerticalStrut(UiTheme.SPACING_MD));
 
         // Animated spinner using custom painted component
+        JPanel spinnerWrapper = getSpinnerWrapper();
+        panel.add(spinnerWrapper);
+
+        panel.add(Box.createVerticalStrut(UiTheme.SPACING_SM));
+
+        // Subtitle with additional info
+        JLabel subtitleLabel = UiTheme.createDescriptionLabel("Prosím vyčkejte...");
+        subtitleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(subtitleLabel);
+
+        return panel;
+    }
+
+    private JPanel getSpinnerWrapper() {
         JPanel spinnerWrapper = new JPanel(new FlowLayout(FlowLayout.CENTER));
         spinnerWrapper.setOpaque(false);
         spinnerWrapper.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -315,16 +329,7 @@ public class ResultsWindow extends JFrame {
         };
 
         spinnerWrapper.add(spinner);
-        panel.add(spinnerWrapper);
-
-        panel.add(Box.createVerticalStrut(UiTheme.SPACING_SM));
-
-        // Subtitle with additional info
-        JLabel subtitleLabel = UiTheme.createDescriptionLabel("Prosím vyčkejte...");
-        subtitleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        panel.add(subtitleLabel);
-
-        return panel;
+        return spinnerWrapper;
     }
 
     private JPanel createSuccessPanel() {
@@ -410,7 +415,7 @@ public class ResultsWindow extends JFrame {
         });
         buttonsPanel.add(backButton);
 
-        refreshButton = UiTheme.createSecondaryButton("Aktualizovat");
+        refreshButton = UiTheme.createSecondaryButton("Znovu načíst");
         refreshButton.addActionListener(e -> loadData());
         buttonsPanel.add(refreshButton);
 
@@ -495,11 +500,11 @@ public class ResultsWindow extends JFrame {
             protected EvaluationResult doInBackground() {
                 try {
                     SpreadsheetWorker spreadsheetWorker = SpreadsheetWorkerFactory.create(spreadsheetSource);
-                    IcoFromFiles icoFromFiles = new IcoFromFiles();
-                    MatchEvaluator evaluator = new MatchEvaluator(spreadsheetWorker, icoFromFiles);
+                    InfoFromFiles infoFromFiles = new InfoFromFiles();
+                    MatchEvaluator evaluator = new MatchEvaluator(spreadsheetWorker, infoFromFiles);
 
                     List<Client> clients = evaluator.evaluateMatches(spreadsheetSource.identifier(), folderPath, month);
-                    WalkerResult walkerResult = icoFromFiles.readReports(folderPath);
+                    WalkerResult walkerResult = infoFromFiles.readReports(folderPath);
 
                     return new EvaluationResult(clients, walkerResult.errorReports(), null);
                 } catch (Exception e) {

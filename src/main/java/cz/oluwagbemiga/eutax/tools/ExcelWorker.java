@@ -2,6 +2,7 @@ package cz.oluwagbemiga.eutax.tools;
 
 import cz.oluwagbemiga.eutax.pojo.Client;
 import cz.oluwagbemiga.eutax.pojo.CzechMonth;
+import cz.oluwagbemiga.eutax.pojo.InsuranceCompany;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -9,7 +10,7 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -69,26 +70,45 @@ public class ExcelWorker implements SpreadsheetWorker {
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) {
-                    continue;
-                }
+                    // empty row — skip processing for this iteration without using continue/break
+                } else {
+                    // Column A (index 0): Name
+                    Cell nameCell = row.getCell(0);
+                    String name = getCellValueAsString(nameCell);
 
-                // Column A (index 0): Name
-                Cell nameCell = row.getCell(0);
-                String name = getCellValueAsString(nameCell);
+                    // Column B (index 1): ICO
+                    Cell icoCell = row.getCell(1);
+                    String ico = getCellValueAsString(icoCell);
 
-                // Column B (index 1): ICO
-                Cell icoCell = row.getCell(1);
-                String ico = getCellValueAsString(icoCell);
+                    // If ICO is empty, stop reading further rows (do not include this row)
+                    if (ico == null || ico.trim().isEmpty()) {
+                        log.debug("Stopping read at row {} because ICO is empty", i);
+                        break;
+                    }
 
-                // Column G (index 6): Report Generated
-                Cell reportGeneratedCell = row.getCell(6);
-                boolean reportGenerated = getCellValueAsBoolean(reportGeneratedCell);
+                    // Column G (index 6): Report Generated (we need raw string to detect "NE")
+                    Cell reportGeneratedCell = row.getCell(6);
+                    String reportGeneratedRaw = getCellValueAsString(reportGeneratedCell);
 
-                // Only add if name is not empty
-                if (name != null && !name.trim().isEmpty()) {
-                    Client client = new Client(name.trim(), ico != null ? ico.trim() : "", reportGenerated);
-                    clients.add(client);
-                    log.debug("Read client: {}", client);
+                    boolean reportGenerated = getCellValueAsBoolean(reportGeneratedCell);
+
+                    // Collect insurance companies from columns K..Q using the enum mapping
+                    List<InsuranceCompany> insuranceCompanies = new ArrayList<>();
+                    for (InsuranceCompany company : InsuranceCompany.values()) {
+                        int colIndexZeroBased = company.getColumnIndex() - 1; // enum stores 1-based index
+                        Cell insCell = row.getCell(colIndexZeroBased);
+                        String insValue = getCellValueAsString(insCell);
+                        if (insValue != null && !insValue.trim().isEmpty()) {
+                            insuranceCompanies.add(company);
+                        }
+                    }
+
+                    // Only add if name is not empty and column G isn't explicitly "NE"
+                    if (name != null && !name.trim().isEmpty() && !(reportGeneratedRaw != null && "NE".equalsIgnoreCase(reportGeneratedRaw.trim()))) {
+                        Client client = new Client(name.trim(), ico.trim(), reportGenerated, insuranceCompanies);
+                        clients.add(client);
+                        log.debug("Read client: {}", client);
+                    }
                 }
             }
 
@@ -133,12 +153,25 @@ public class ExcelWorker implements SpreadsheetWorker {
             }
             case BOOLEAN -> String.valueOf(cell.getBooleanCellValue());
             case FORMULA -> {
-                try {
-                    yield cell.getStringCellValue();
-                } catch (IllegalStateException e) {
-                    // If formula result is numeric
-                    yield String.valueOf(cell.getNumericCellValue());
-                }
+                // Use the cached formula result type to safely extract the result
+                var cachedType = cell.getCachedFormulaResultType();
+                yield switch (cachedType) {
+                    case STRING -> cell.getStringCellValue();
+                    case NUMERIC -> {
+                        if (DateUtil.isCellDateFormatted(cell)) {
+                            yield cell.getDateCellValue().toString();
+                        } else {
+                            double numericValue = cell.getNumericCellValue();
+                            if (numericValue == Math.floor(numericValue)) {
+                                yield String.valueOf((long) numericValue);
+                            } else {
+                                yield String.valueOf(numericValue);
+                            }
+                        }
+                    }
+                    case BOOLEAN -> String.valueOf(cell.getBooleanCellValue());
+                    default -> "";
+                };
             }
             case BLANK -> "";
             default -> "";
@@ -173,18 +206,17 @@ public class ExcelWorker implements SpreadsheetWorker {
             }
             case NUMERIC -> cell.getNumericCellValue() != 0;
             case FORMULA -> {
-                try {
-                    yield cell.getBooleanCellValue();
-                } catch (IllegalStateException e) {
-                    // If formula result is not boolean, check if numeric
-                    try {
-                        yield cell.getNumericCellValue() != 0;
-                    } catch (IllegalStateException ex) {
-                        // If formula result is string
+                // Use the cached formula result type to evaluate the formula safely
+                var cachedType = cell.getCachedFormulaResultType();
+                yield switch (cachedType) {
+                    case BOOLEAN -> cell.getBooleanCellValue();
+                    case NUMERIC -> cell.getNumericCellValue() != 0;
+                    case STRING -> {
                         String value = cell.getStringCellValue().trim().toLowerCase();
                         yield value.equals("true") || value.equals("yes") || value.equals("ano") || value.equals("1");
                     }
-                }
+                    default -> false;
+                };
             }
             case BLANK -> false;
             default -> false;
@@ -212,14 +244,13 @@ public class ExcelWorker implements SpreadsheetWorker {
             throw new FileNotFoundException("File not found: " + filePath);
         }
 
-        // Create a map for quick lookup by ICO - only include clients with reportGenerated = true
-        Map<String, Boolean> icoToReportGenerated = clients.stream()
+        // Create a set for quick lookup by ICO - include ICOs of clients with reportGenerated = true
+        Set<String> icoSet = (clients == null ? List.<Client>of() : clients).stream()
                 .filter(Client::reportGenerated)
-                .collect(Collectors.toMap(
-                        Client::ico,
-                        Client::reportGenerated,
-                        (existing, replacement) -> replacement
-                ));
+                .map(Client::ico)
+                .filter(s -> s != null && !s.trim().isEmpty())
+                .map(String::trim)
+                .collect(Collectors.toSet());
 
         try (FileInputStream fis = new FileInputStream(file);
              XSSFWorkbook workbook = new XSSFWorkbook(fis)) {
@@ -246,19 +277,19 @@ public class ExcelWorker implements SpreadsheetWorker {
                 Cell icoCell = row.getCell(1);
                 String ico = getCellValueAsString(icoCell);
 
-                if (ico != null && !ico.trim().isEmpty() && icoToReportGenerated.containsKey(ico.trim())) {
-                    // Column G (index 6): Report Generated
-                    Cell reportGeneratedCell = row.getCell(6);
+                if (ico != null && !ico.trim().isEmpty() && icoSet.contains(ico.trim())) {
+                     // Column G (index 6): Report Generated
+                     Cell reportGeneratedCell = row.getCell(6);
 
-                    if (reportGeneratedCell == null) {
-                        reportGeneratedCell = row.createCell(6);
-                    }
+                     if (reportGeneratedCell == null) {
+                         reportGeneratedCell = row.createCell(6);
+                     }
 
-                    reportGeneratedCell.setCellValue(true);
-                    updatedCount++;
-                    log.debug("Updated ICO '{}' reportGenerated to: true", ico.trim());
-                }
-            }
+                     reportGeneratedCell.setCellValue(true);
+                     updatedCount++;
+                     log.debug("Updated ICO '{}' reportGenerated to: true", ico.trim());
+                 }
+             }
 
             if (updatedCount > 0) {
                 log.info("Successfully updated {} clients in sheet '{}'", updatedCount, month.getCzechName());
@@ -268,7 +299,7 @@ public class ExcelWorker implements SpreadsheetWorker {
                     workbook.write(fos);
                 }
             } else {
-                log.info("No clients needed updating in sheet '{}'", month.getCzechName());
+                log.info("No clients needed updating in sheet '{}" , month.getCzechName());
             }
 
         } catch (IOException e) {
@@ -277,4 +308,3 @@ public class ExcelWorker implements SpreadsheetWorker {
         }
     }
 }
-

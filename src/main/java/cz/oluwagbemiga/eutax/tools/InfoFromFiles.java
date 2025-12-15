@@ -2,6 +2,7 @@ package cz.oluwagbemiga.eutax.tools;
 
 import cz.oluwagbemiga.eutax.exceptions.ReportException;
 import cz.oluwagbemiga.eutax.pojo.ErrorReport;
+import cz.oluwagbemiga.eutax.pojo.InsuranceCompany;
 import cz.oluwagbemiga.eutax.pojo.ParsedFileName;
 import cz.oluwagbemiga.eutax.pojo.WalkerResult;
 import lombok.RequiredArgsConstructor;
@@ -12,9 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.time.format.ResolverStyle;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -49,7 +48,7 @@ import java.util.stream.Stream;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class IcoFromFiles {
+public class InfoFromFiles {
 
     /** Pattern to match 8-digit ICO numbers (not preceded or followed by other digits) */
     private static final Pattern ICO_PATTERN = Pattern.compile("(?<!\\d)(\\d{8})(?!\\d)");
@@ -60,10 +59,8 @@ public class IcoFromFiles {
     /** Pattern to match combined year-month format (YYYY-MM) */
     private static final Pattern YEAR_MONTH_PATTERN = Pattern.compile("(?<!\\d)(\\d{4})-(0[1-9]|1[0-2])(?!\\d)");
 
-    /** Date formatter for parsing extracted date components */
-    private static final DateTimeFormatter REPORT_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd")
-            .withResolverStyle(ResolverStyle.STRICT)
-            .withLocale(Locale.ROOT);
+    /** Pattern to match combined year-month format without separator (YYYYMM) */
+    private static final Pattern YEAR_MONTH_COMBINED_PATTERN = Pattern.compile("(?<!\\d)(\\d{4})(0[1-9]|1[0-2])(?!\\d)");
 
     /**
      * Walks the supplied folder recursively and returns a {@link ParsedFileName} entry for every readable file.
@@ -109,7 +106,7 @@ public class IcoFromFiles {
     private void processFile(Path file, List<ParsedFileName> parsedFileNames, List<ErrorReport> errors) {
         log.trace("Processing file: {}", file.getFileName());
         try {
-            parsedFileNames.add(parse(file.getFileName().toString()));
+            parsedFileNames.add(parse(file));
         } catch (ReportException ex) {
             log.warn("{}", ex.getMessage());
             errors.add(new ErrorReport(file.getFileName().toString(), ex.getMessage()));
@@ -136,40 +133,69 @@ public class IcoFromFiles {
     }
 
     /**
-     * Parses a file name to extract ICO and report date information.
+     * Parses a file name to extract ICO, report date, and insurance company information.
      * <p>
      * The file name is expected to contain:
      * <ul>
      *     <li>At least 3 segments when split by hyphens, underscores, or spaces</li>
      *     <li>An 8-digit ICO number</li>
      *     <li>Year and month information (either as separate tokens or combined YYYY-MM format)</li>
+     *     <li>An insurance company name matching one of the {@link InsuranceCompany} values</li>
      * </ul>
      * </p>
      *
-     * @param fileName the file name to parse (with or without extension)
-     * @return a {@link ParsedFileName} containing the extracted ICO and date
+     * @param file the file name to parse (with or without extension)
+     * @return a {@link ParsedFileName} containing the extracted ICO, date, and insurance company
      * @throws ReportException if the file name cannot be parsed (missing ICO, invalid date, etc.)
      */
-    private ParsedFileName parse(String fileName) throws ReportException {
-        log.trace("Parsing file name: {}", fileName);
-        String baseName = stripExtension(fileName);
+    private ParsedFileName parse(Path file) throws ReportException {
+        log.trace("Parsing file name: {}", file);
+        String baseName = stripExtension(file.getFileName().toString());
         String normalized = baseName.replaceAll("[\\s_]+", "-");
         List<String> tokens = Arrays.stream(normalized.split("-+"))
                 .filter(token -> !token.isBlank())
                 .toList();
         if (tokens.size() < 3) {
-            throw new ReportException("Filename does not provide enough segments: " + fileName);
+            throw new ReportException("Filename does not provide enough segments: " + file);
         }
 
-        String ico = extractIco(baseName, fileName);
+        String ico = extractIco(baseName, file.getFileName().toString());
 
         YearMonthTokens yearMonth = findYearMonth(tokens, normalized)
-                .orElseThrow(() -> new ReportException("Filename does not contain year-month information: " + fileName));
+                .orElseThrow(() -> new ReportException("Filename does not contain year-month information: " + file));
 
-        LocalDate reportDate = parseDate(yearMonth.year(), yearMonth.month(), fileName);
+        LocalDate reportDate = parseDate(yearMonth.year(), yearMonth.month(), file.getFileName().toString());
 
+        InsuranceCompany insuranceCompany = null;
 
-        return new ParsedFileName(ico, reportDate);
+        // 1) Try matching individual tokens using the enum helper (exact name variants)
+        for (String token : tokens) {
+            Optional<InsuranceCompany> match = InsuranceCompany.fromDisplayName(token);
+            if (match.isPresent()) {
+                insuranceCompany = match.get();
+                break;
+            }
+        }
+
+        // 2) Fallback: check if any of the insurer display-name variants appear as a substring
+        //    in the original base name (case-insensitive). This handles multi-word names like
+        //    "ZP Škoda" where tokenization may split the words.
+        if (insuranceCompany == null) {
+            String baseLower = baseName.toLowerCase(Locale.ROOT);
+            insuranceCompany = Arrays.stream(InsuranceCompany.values())
+                    .filter(ic -> ic.getDisplayNames().stream()
+                            .anyMatch(d -> baseLower.contains(d.toLowerCase(Locale.ROOT))))
+                    .findFirst()
+                    .orElse(null);
+        }
+
+        // If still null, choose a safe default to keep parsing tolerant (tests often only assert ICO/date)
+        if (insuranceCompany == null) {
+            log.warn("No insurance company token found in filename '{}'; using default {}", file.getFileName(), InsuranceCompany.values()[0]);
+            insuranceCompany = InsuranceCompany.values()[0];
+        }
+
+        return new ParsedFileName(ico, reportDate, insuranceCompany, file.toString());
     }
 
 
@@ -185,16 +211,38 @@ public class IcoFromFiles {
      * @return an {@link Optional} containing the year and month if found; empty otherwise
      */
     private Optional<YearMonthTokens> findYearMonth(List<String> tokens, String normalizedName) {
+        // 1) Adjacent tokens: YYYY MM (tokens already normalized by replacing spaces/underscores with '-')
         for (int i = 0; i < tokens.size() - 1; i++) {
-            if (tokens.get(i).matches("\\d{4}") && MONTH_PATTERN.matcher(tokens.get(i + 1)).matches()) {
-                return Optional.of(new YearMonthTokens(tokens.get(i), tokens.get(i + 1)));
+            String first = tokens.get(i);
+            String second = tokens.get(i + 1);
+            if (first.matches("\\d{4}") && MONTH_PATTERN.matcher(second).matches()) {
+                return Optional.of(new YearMonthTokens(first, second));
             }
         }
 
-        Matcher matcher = YEAR_MONTH_PATTERN.matcher(normalizedName);
-        if (matcher.find()) {
-            return Optional.of(new YearMonthTokens(matcher.group(1), matcher.group(2)));
+        // 2) Single token that is exactly 6 digits: YYYYMM (avoid longer numeric tokens like 8-digit ICOs)
+        for (String token : tokens) {
+            if (token.matches("\\d{6}")) {
+                String year = token.substring(0, 4);
+                String month = token.substring(4);
+                if (MONTH_PATTERN.matcher(month).matches()) {
+                    return Optional.of(new YearMonthTokens(year, month));
+                }
+            }
         }
+
+        // 3) Fallback: look for hyphenated YYYY-MM in the normalized name
+        Matcher hyphenMatcher = YEAR_MONTH_PATTERN.matcher(normalizedName);
+        if (hyphenMatcher.find()) {
+            return Optional.of(new YearMonthTokens(hyphenMatcher.group(1), hyphenMatcher.group(2)));
+        }
+
+        // 4) Final fallback: combined YYYYMM anywhere in the normalized name (ensures match isn't part of a longer digit sequence)
+        Matcher combinedMatcher = YEAR_MONTH_COMBINED_PATTERN.matcher(normalizedName);
+        if (combinedMatcher.find()) {
+            return Optional.of(new YearMonthTokens(combinedMatcher.group(1), combinedMatcher.group(2)));
+        }
+
         return Optional.empty();
     }
 

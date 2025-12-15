@@ -15,13 +15,13 @@ import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class IcoFromFilesTest {
+class InfoFromFilesTest {
 
     private static final String REPORT_DIR = Path.of("src", "test", "resources", "report_dir")
             .toAbsolutePath()
             .toString();
 
-    private final IcoFromFiles icoFromFiles = new IcoFromFiles();
+    private final InfoFromFiles infoFromFiles = new InfoFromFiles();
 
     @Nested
     @DisplayName("readReports() basic functionality")
@@ -30,7 +30,7 @@ class IcoFromFilesTest {
         @Test
         @DisplayName("should parse valid files and traverse directory tree")
         void readReportsParsesValidFilesAndTraversesDirectoryTree() {
-            WalkerResult result = icoFromFiles.readReports(REPORT_DIR);
+            WalkerResult result = infoFromFiles.readReports(REPORT_DIR);
 
             assertEquals(3, result.parsedFileNames().size());
             assertEquals(2, result.errorReports().size());
@@ -46,7 +46,7 @@ class IcoFromFilesTest {
         @Test
         @DisplayName("should collect errors for invalid files")
         void readReportsCollectsErrorsForInvalidFiles() {
-            WalkerResult result = icoFromFiles.readReports(REPORT_DIR);
+            WalkerResult result = infoFromFiles.readReports(REPORT_DIR);
 
             assertEquals(2, result.errorReports().size());
             assertTrue(result.errorReports().stream().anyMatch(error ->
@@ -62,7 +62,7 @@ class IcoFromFilesTest {
         @Test
         @DisplayName("should return error for non-existent directory")
         void readReports_nonExistentDirectory_returnsError() {
-            WalkerResult result = icoFromFiles.readReports("/non/existent/path");
+            WalkerResult result = infoFromFiles.readReports("/non/existent/path");
 
             assertTrue(result.parsedFileNames().isEmpty());
             assertEquals(1, result.errorReports().size());
@@ -75,7 +75,7 @@ class IcoFromFilesTest {
             Path file = tempDir.resolve("test.txt");
             Files.createFile(file);
 
-            WalkerResult result = icoFromFiles.readReports(file.toString());
+            WalkerResult result = infoFromFiles.readReports(file.toString());
 
             assertTrue(result.parsedFileNames().isEmpty());
             assertEquals(1, result.errorReports().size());
@@ -85,7 +85,7 @@ class IcoFromFilesTest {
         @Test
         @DisplayName("should return empty result for empty directory")
         void readReports_emptyDirectory_returnsEmptyResult(@TempDir Path tempDir) {
-            WalkerResult result = icoFromFiles.readReports(tempDir.toString());
+            WalkerResult result = infoFromFiles.readReports(tempDir.toString());
 
             assertTrue(result.parsedFileNames().isEmpty());
             assertTrue(result.errorReports().isEmpty());
@@ -102,7 +102,7 @@ class IcoFromFilesTest {
             Path file = tempDir.resolve("12345678_VZP_2025_11.pdf");
             Files.createFile(file);
 
-            WalkerResult result = icoFromFiles.readReports(tempDir.toString());
+            WalkerResult result = infoFromFiles.readReports(tempDir.toString());
 
             assertEquals(1, result.parsedFileNames().size());
             assertEquals("12345678", result.parsedFileNames().get(0).ico());
@@ -115,7 +115,7 @@ class IcoFromFilesTest {
             Path file = tempDir.resolve("PPPZ-12345678-2025-06.pdf");
             Files.createFile(file);
 
-            WalkerResult result = icoFromFiles.readReports(tempDir.toString());
+            WalkerResult result = infoFromFiles.readReports(tempDir.toString());
 
             assertEquals(1, result.parsedFileNames().size());
             assertEquals("12345678", result.parsedFileNames().get(0).ico());
@@ -128,7 +128,7 @@ class IcoFromFilesTest {
             Path file = tempDir.resolve("Report 12345678 2025 07.pdf");
             Files.createFile(file);
 
-            WalkerResult result = icoFromFiles.readReports(tempDir.toString());
+            WalkerResult result = infoFromFiles.readReports(tempDir.toString());
 
             assertEquals(1, result.parsedFileNames().size());
             assertEquals("12345678", result.parsedFileNames().get(0).ico());
@@ -141,7 +141,7 @@ class IcoFromFilesTest {
             Path file = tempDir.resolve("12345678_VZP-2025_08.pdf");
             Files.createFile(file);
 
-            WalkerResult result = icoFromFiles.readReports(tempDir.toString());
+            WalkerResult result = infoFromFiles.readReports(tempDir.toString());
 
             assertEquals(1, result.parsedFileNames().size());
             assertEquals("12345678", result.parsedFileNames().get(0).ico());
@@ -154,7 +154,7 @@ class IcoFromFilesTest {
             Path file = tempDir.resolve("12345678_VZP_2025_09");
             Files.createFile(file);
 
-            WalkerResult result = icoFromFiles.readReports(tempDir.toString());
+            WalkerResult result = infoFromFiles.readReports(tempDir.toString());
 
             assertEquals(1, result.parsedFileNames().size());
             assertEquals("12345678", result.parsedFileNames().get(0).ico());
@@ -168,7 +168,7 @@ class IcoFromFilesTest {
             Path file = tempDir.resolve("12345678_VZP_2025_" + month + ".pdf");
             Files.createFile(file);
 
-            WalkerResult result = icoFromFiles.readReports(tempDir.toString());
+            WalkerResult result = infoFromFiles.readReports(tempDir.toString());
 
             assertEquals(1, result.parsedFileNames().size());
             assertEquals(Integer.parseInt(month), result.parsedFileNames().get(0).date().getMonthValue());
@@ -185,7 +185,7 @@ class IcoFromFilesTest {
             Path file = tempDir.resolve("VZP_2025_01.pdf");
             Files.createFile(file);
 
-            WalkerResult result = icoFromFiles.readReports(tempDir.toString());
+            WalkerResult result = infoFromFiles.readReports(tempDir.toString());
 
             assertTrue(result.parsedFileNames().isEmpty());
             assertEquals(1, result.errorReports().size());
@@ -198,7 +198,7 @@ class IcoFromFilesTest {
             Path file = tempDir.resolve("PPPZ-12345678-VZP.pdf");
             Files.createFile(file);
 
-            WalkerResult result = icoFromFiles.readReports(tempDir.toString());
+            WalkerResult result = infoFromFiles.readReports(tempDir.toString());
 
             assertTrue(result.parsedFileNames().isEmpty());
             assertEquals(1, result.errorReports().size());
@@ -211,7 +211,7 @@ class IcoFromFilesTest {
             Path file = tempDir.resolve("PPPZ-12345678-2025-13.pdf");
             Files.createFile(file);
 
-            WalkerResult result = icoFromFiles.readReports(tempDir.toString());
+            WalkerResult result = infoFromFiles.readReports(tempDir.toString());
 
             assertTrue(result.parsedFileNames().isEmpty());
             assertEquals(1, result.errorReports().size());
@@ -223,7 +223,7 @@ class IcoFromFilesTest {
             Path file = tempDir.resolve("12345678-01.pdf");
             Files.createFile(file);
 
-            WalkerResult result = icoFromFiles.readReports(tempDir.toString());
+            WalkerResult result = infoFromFiles.readReports(tempDir.toString());
 
             assertTrue(result.parsedFileNames().isEmpty());
             assertEquals(1, result.errorReports().size());
@@ -236,7 +236,7 @@ class IcoFromFilesTest {
             Path file = tempDir.resolve("1234567_VZP_2025_01.pdf");
             Files.createFile(file);
 
-            WalkerResult result = icoFromFiles.readReports(tempDir.toString());
+            WalkerResult result = infoFromFiles.readReports(tempDir.toString());
 
             assertTrue(result.parsedFileNames().isEmpty());
             assertEquals(1, result.errorReports().size());
@@ -249,7 +249,7 @@ class IcoFromFilesTest {
             Path file = tempDir.resolve("123456789_VZP_2025_01.pdf");
             Files.createFile(file);
 
-            WalkerResult result = icoFromFiles.readReports(tempDir.toString());
+            WalkerResult result = infoFromFiles.readReports(tempDir.toString());
 
             assertTrue(result.parsedFileNames().isEmpty());
             assertEquals(1, result.errorReports().size());
@@ -272,7 +272,7 @@ class IcoFromFilesTest {
             Files.createFile(file1);
             Files.createFile(file2);
 
-            WalkerResult result = icoFromFiles.readReports(tempDir.toString());
+            WalkerResult result = infoFromFiles.readReports(tempDir.toString());
 
             assertEquals(2, result.parsedFileNames().size());
             assertTrue(result.parsedFileNames().stream().anyMatch(p -> p.ico().equals("12345678")));
@@ -290,7 +290,7 @@ class IcoFromFilesTest {
             Path file = level3.resolve("12345678_VZP_2025_01.pdf");
             Files.createFile(file);
 
-            WalkerResult result = icoFromFiles.readReports(tempDir.toString());
+            WalkerResult result = infoFromFiles.readReports(tempDir.toString());
 
             assertEquals(1, result.parsedFileNames().size());
             assertEquals("12345678", result.parsedFileNames().get(0).ico());
@@ -307,7 +307,7 @@ class IcoFromFilesTest {
             Path file = tempDir.resolve("00000001_VZP_2025_01.pdf");
             Files.createFile(file);
 
-            WalkerResult result = icoFromFiles.readReports(tempDir.toString());
+            WalkerResult result = infoFromFiles.readReports(tempDir.toString());
 
             assertEquals(1, result.parsedFileNames().size());
             assertEquals("00000001", result.parsedFileNames().get(0).ico());
@@ -320,7 +320,7 @@ class IcoFromFilesTest {
             Path file = tempDir.resolve("12345678_99999999_2025_01.pdf");
             Files.createFile(file);
 
-            WalkerResult result = icoFromFiles.readReports(tempDir.toString());
+            WalkerResult result = infoFromFiles.readReports(tempDir.toString());
 
             assertEquals(1, result.parsedFileNames().size());
             assertEquals("12345678", result.parsedFileNames().get(0).ico());
@@ -332,7 +332,7 @@ class IcoFromFilesTest {
             Path file = tempDir.resolve("Report-12345678-2025-11.pdf");
             Files.createFile(file);
 
-            WalkerResult result = icoFromFiles.readReports(tempDir.toString());
+            WalkerResult result = infoFromFiles.readReports(tempDir.toString());
 
             assertEquals(1, result.parsedFileNames().size());
             assertEquals("12345678", result.parsedFileNames().get(0).ico());
@@ -345,7 +345,7 @@ class IcoFromFilesTest {
             Path file = tempDir.resolve("12345678_VZP_1999_12.pdf");
             Files.createFile(file);
 
-            WalkerResult result = icoFromFiles.readReports(tempDir.toString());
+            WalkerResult result = infoFromFiles.readReports(tempDir.toString());
 
             assertEquals(1, result.parsedFileNames().size());
             assertEquals(LocalDate.of(1999, 12, 1), result.parsedFileNames().get(0).date());
@@ -357,7 +357,7 @@ class IcoFromFilesTest {
             Path file = tempDir.resolve("12345678_VZP_2030_01.pdf");
             Files.createFile(file);
 
-            WalkerResult result = icoFromFiles.readReports(tempDir.toString());
+            WalkerResult result = infoFromFiles.readReports(tempDir.toString());
 
             assertEquals(1, result.parsedFileNames().size());
             assertEquals(LocalDate.of(2030, 1, 1), result.parsedFileNames().get(0).date());
@@ -373,7 +373,7 @@ class IcoFromFilesTest {
             Files.createFile(fileA);
             Files.createFile(fileB);
 
-            WalkerResult result = icoFromFiles.readReports(tempDir.toString());
+            WalkerResult result = infoFromFiles.readReports(tempDir.toString());
 
             assertEquals(3, result.parsedFileNames().size());
             // Should be sorted alphabetically by file path

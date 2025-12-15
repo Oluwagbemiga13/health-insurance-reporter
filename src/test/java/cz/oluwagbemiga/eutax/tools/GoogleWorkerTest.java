@@ -134,7 +134,7 @@ class GoogleWorkerTest {
 
             assertThrows(IllegalStateException.class, () ->
                     worker.updateReportGeneratedStatus("spreadsheet-id",
-                            List.of(new cz.oluwagbemiga.eutax.pojo.Client("Test", "12345678", true)),
+                            List.of(new cz.oluwagbemiga.eutax.pojo.Client("Test", "12345678", true, List.of())),
                             CzechMonth.LEDEN)
             );
         }
@@ -171,7 +171,7 @@ class GoogleWorkerTest {
 
             assertThrows(FileNotFoundException.class, () ->
                     worker.updateReportGeneratedStatus("",
-                            List.of(new cz.oluwagbemiga.eutax.pojo.Client("Test", "12345678", true)),
+                            List.of(new cz.oluwagbemiga.eutax.pojo.Client("Test", "12345678", true, List.of())),
                             CzechMonth.LEDEN)
             );
         }
@@ -310,4 +310,3 @@ class GoogleWorkerTest {
         }
     }
 }
-

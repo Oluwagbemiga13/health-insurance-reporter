@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
  * </p>
  *
  * @see SpreadsheetWorker
- * @see IcoFromFiles
+ * @see InfoFromFiles
  * @see Client
  */
 @Slf4j
@@ -43,7 +43,7 @@ public class MatchEvaluator {
     private final SpreadsheetWorker spreadsheetWorker;
 
     /** The file parser used to extract metadata from report file names */
-    private final IcoFromFiles icoFromFiles;
+    private final InfoFromFiles infoFromFiles;
 
     /**
      * Reads clients from a spreadsheet and checks if they have corresponding report files for the current year.
@@ -70,7 +70,7 @@ public class MatchEvaluator {
         log.info("Read {} clients from spreadsheet", clients.size());
 
         // Read reports from file system
-        WalkerResult walkerResult = icoFromFiles.readReports(reportsFolder);
+        WalkerResult walkerResult = infoFromFiles.readReports(reportsFolder);
         List<ParsedFileName> parsedFiles = walkerResult.parsedFileNames();
         log.info("Found {} parsed report files", parsedFiles.size());
 
@@ -125,7 +125,7 @@ public class MatchEvaluator {
         List<Client> clients = spreadsheetWorker.readClients(spreadsheetIdentifier, month);
         log.info("Read {} clients from spreadsheet", clients.size());
 
-        WalkerResult walkerResult = icoFromFiles.readReports(reportsFolder);
+        WalkerResult walkerResult = infoFromFiles.readReports(reportsFolder);
         List<ParsedFileName> parsedFiles = walkerResult.parsedFileNames();
         log.info("Found {} parsed report files", parsedFiles.size());
 
@@ -167,7 +167,8 @@ public class MatchEvaluator {
             updatedClients.add(new Client(
                     client.name(),
                     client.ico(),
-                    hasReport
+                    hasReport,
+                    client.insuranceCompanies()
             ));
 
             log.debug("Client {}: ICO={}, Report={}",

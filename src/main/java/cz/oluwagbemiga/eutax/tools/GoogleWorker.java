@@ -6,9 +6,9 @@ import com.google.api.services.sheets.v4.model.BatchUpdateValuesRequest;
 import com.google.api.services.sheets.v4.model.ValueRange;
 import com.google.auth.http.HttpCredentialsAdapter;
 import com.google.auth.oauth2.GoogleCredentials;
-import com.google.common.collect.ImmutableList;
 import cz.oluwagbemiga.eutax.pojo.Client;
 import cz.oluwagbemiga.eutax.pojo.CzechMonth;
+import cz.oluwagbemiga.eutax.pojo.InsuranceCompany;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -95,6 +95,8 @@ public final class GoogleWorker implements SpreadsheetWorker {
         googleServiceAccountJson = null;
     }
 
+
+
     /**
      * {@inheritDoc}
      * <p>
@@ -118,7 +120,8 @@ public final class GoogleWorker implements SpreadsheetWorker {
         }
 
         String sheetName = month.getCzechName();
-        String range = sheetRange(sheetName, "A2:G");
+        // Read up to column Q so we can inspect insurance company columns (K..Q)
+        String range = sheetRange(sheetName, "A2:Q");
 
         try {
             Sheets sheets = createSheetsService();
@@ -143,9 +146,34 @@ public final class GoogleWorker implements SpreadsheetWorker {
                     continue;
                 }
                 String ico = getCellValueAsString(row, 1).trim();
+
+                // If ICO is empty, stop reading further rows (do not include this row)
+                if (ico.isEmpty()) {
+                    log.debug("Stopping read at Google Sheets row for '{}' because ICO is empty", name);
+                    break;
+                }
+
+                // Column G (index 6) raw check for explicit "NE" to skip this client entirely
+                String reportGeneratedRaw = getCellValueAsString(row, 6);
+                if (reportGeneratedRaw != null && "NE".equalsIgnoreCase(reportGeneratedRaw.trim())) {
+                    log.debug("Skipping Google Sheets row for '{}' because column G is 'NE'", name);
+                    continue;
+                }
+
                 boolean reportGenerated = getCellValueAsBoolean(row, 6);
-                clients.add(new Client(name, ico, reportGenerated));
-                log.debug("Read client from Google Sheets: {} ({})", name, ico);
+
+                // Collect insurance companies from columns K..Q using enum mapping
+                List<InsuranceCompany> insuranceCompanies = new ArrayList<>();
+                for (InsuranceCompany company : InsuranceCompany.values()) {
+                    int colIndexZeroBased = company.getColumnIndex() - 1; // enum stores 1-based index
+                    String insValue = getCellValueAsString(row, colIndexZeroBased);
+                    if (insValue != null && !insValue.trim().isEmpty()) {
+                        insuranceCompanies.add(company);
+                    }
+                }
+
+                clients.add(new Client(name, ico, reportGenerated, insuranceCompanies));
+                log.debug("Read client from Google Sheets: {} ({}), ins: {}", name, ico, insuranceCompanies);
             }
 
             log.info("Successfully read {} clients from sheet '{}'", clients.size(), sheetName);
