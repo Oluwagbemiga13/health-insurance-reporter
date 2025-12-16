@@ -1,6 +1,7 @@
 package cz.oluwagbemiga.eutax.ui;
 
 import cz.oluwagbemiga.eutax.pojo.*;
+import cz.oluwagbemiga.eutax.tools.FileMover;
 import cz.oluwagbemiga.eutax.tools.InfoFromFiles;
 import cz.oluwagbemiga.eutax.tools.MatchEvaluator;
 import cz.oluwagbemiga.eutax.tools.SpreadsheetWorker;
@@ -13,6 +14,9 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 import java.awt.*;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +40,7 @@ public class ResultsWindow extends JFrame {
     private final DefaultTableModel errorsModel;
     // New model for parsed files that are not present in the clients table
     private final DefaultTableModel missingInTableModel;
+    private final DefaultTableModel invalidDirTableModel;
 
     private final JLabel statusLabel = new JLabel(" ");
     private JButton saveButton;
@@ -46,6 +51,7 @@ public class ResultsWindow extends JFrame {
     private JTable missingTable;
     private JTable errorsTable;
     private JTable missingInTable;
+    private JTable invalidDirTable;
     private List<Client> lastEvaluatedClients = List.of();
 
     // Progress components
@@ -90,6 +96,13 @@ public class ResultsWindow extends JFrame {
 
         // New model: parsed files that don't have corresponding client in the spreadsheet
         missingInTableModel = new DefaultTableModel(new String[]{"Soubor", "IČO", "Pojišťovna"}, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        invalidDirTableModel = new DefaultTableModel(new String[]{"Soubor", "IČO", "Pojišťovna", "Složka"}, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return false;
@@ -211,6 +224,39 @@ public class ResultsWindow extends JFrame {
         missingInScroll.setBorder(BorderFactory.createLineBorder(UiTheme.BORDER_COLOR));
         missingInPanel.add(missingInScroll, BorderLayout.CENTER);
         tabbedPane.addTab("Chybí v tabulce", missingInPanel);
+
+        // New tab: files with invalid parent directories
+        JPanel invalidDirPanel = new JPanel(new BorderLayout());
+        invalidDirPanel.setOpaque(false);
+        invalidDirPanel.setBorder(new EmptyBorder(UiTheme.SPACING_SM, UiTheme.SPACING_SM, UiTheme.SPACING_SM, UiTheme.SPACING_SM));
+
+        invalidDirTable = new JTable(invalidDirTableModel);
+        styleTable(invalidDirTable);
+        invalidDirTable.getColumnModel().getColumn(0).setPreferredWidth(360);
+        invalidDirTable.getColumnModel().getColumn(1).setPreferredWidth(120);
+        invalidDirTable.getColumnModel().getColumn(2).setPreferredWidth(160);
+        invalidDirTable.getColumnModel().getColumn(3).setPreferredWidth(140);
+
+        JScrollPane invalidDirScroll = new JScrollPane(invalidDirTable);
+        invalidDirScroll.setBorder(BorderFactory.createLineBorder(UiTheme.BORDER_COLOR));
+        invalidDirPanel.add(invalidDirScroll, BorderLayout.CENTER);
+
+        // Add action buttons under the invalid-dir table
+        JPanel invalidActions = new JPanel(new FlowLayout(FlowLayout.LEFT, UiTheme.SPACING_SM, 0));
+        invalidActions.setOpaque(false);
+
+        JButton moveSelectedBtn = UiTheme.createPrimaryButton("Přesunout vybrané");
+        moveSelectedBtn.addActionListener(e -> moveSelectedInvalidFiles());
+        invalidActions.add(moveSelectedBtn);
+
+        JButton moveAllBtn = UiTheme.createSecondaryButton("Přesunout vše");
+        moveAllBtn.addActionListener(e -> moveAllInvalidFiles());
+        invalidActions.add(moveAllBtn);
+
+        // place actions at bottom of the invalidDirPanel
+        invalidDirPanel.add(invalidActions, BorderLayout.SOUTH);
+
+        tabbedPane.addTab("Nesprávné adresáře", invalidDirPanel);
 
         contentCard.add(tabbedPane, BorderLayout.CENTER);
 
@@ -558,6 +604,7 @@ public class ResultsWindow extends JFrame {
         missingReportsModel.setRowCount(0);
         errorsModel.setRowCount(0);
         missingInTableModel.setRowCount(0);
+        invalidDirTableModel.setRowCount(0);
 
         SwingWorker<EvaluationResult, Void> worker = new SwingWorker<>() {
             @Override
@@ -614,7 +661,18 @@ public class ResultsWindow extends JFrame {
                     // Build ICO -> available insurers map for the same target month/year used during evaluation
                     int targetYear = LocalDate.now().getYear();
                     int targetMonth = month.getMonthNumber();
-                    Map<String, Set<InsuranceCompany>> icoToInsurers = result.parsedFiles().stream()
+                    // Build two ICO -> available insurers maps:
+                    // 1) For evaluation display (includes files even from invalid directories) so "Chybějící pojišťovny" reflects presence of files
+                    Map<String, Set<InsuranceCompany>> icoToInsurersForDisplay = result.parsedFiles().stream()
+                            .filter(pf -> pf.date().getYear() == targetYear && pf.date().getMonthValue() == targetMonth)
+                            .collect(Collectors.groupingBy(
+                                    ParsedFileName::ico,
+                                    Collectors.mapping(ParsedFileName::insuranceCompany, Collectors.toSet())
+                            ));
+
+                    // 2) For evaluation saving (matches MatchEvaluator behavior) - exclude invalid-directory files
+                    Map<String, Set<InsuranceCompany>> icoToInsurersForEvaluation = result.parsedFiles().stream()
+                            .filter(pf -> !pf.invalidDirectory())
                             .filter(pf -> pf.date().getYear() == targetYear && pf.date().getMonthValue() == targetMonth)
                             .collect(Collectors.groupingBy(
                                     ParsedFileName::ico,
@@ -631,7 +689,9 @@ public class ResultsWindow extends JFrame {
                         if (client.insuranceCompanies() == null || client.insuranceCompanies().isEmpty()) {
                             missingInsurers = "";
                         } else {
-                            Set<InsuranceCompany> available = icoToInsurers.get(client.ico());
+                            // Use the evaluation map (which excludes files in invalid directories)
+                            // so that files located in wrong folders are considered missing here.
+                            Set<InsuranceCompany> available = icoToInsurersForEvaluation.get(client.ico());
                             String joined = client.insuranceCompanies().stream()
                                     .filter(req -> available == null || !available.contains(req))
                                     .map(InsuranceCompany::toString)
@@ -647,6 +707,7 @@ public class ResultsWindow extends JFrame {
                             .map(Client::ico)
                             .collect(Collectors.toSet());
 
+                    // Files missing in the spreadsheet table (include files even from invalid directories so they appear in both tabs)
                     List<ParsedFileName> missingInTable = result.parsedFiles().stream()
                             .filter(pf -> pf.date().getYear() == targetYear && pf.date().getMonthValue() == targetMonth)
                             .filter(pf -> !clientIcos.contains(pf.ico()))
@@ -654,6 +715,16 @@ public class ResultsWindow extends JFrame {
 
                     for (ParsedFileName pf : missingInTable) {
                         missingInTableModel.addRow(new Object[]{pf.filePath(), pf.ico(), pf.insuranceCompany().toString()});
+                    }
+
+                    // Files where parent directory does not match insurer display names
+                    List<ParsedFileName> invalidDirFiles = result.parsedFiles().stream()
+                            .filter(ParsedFileName::invalidDirectory)
+                            .filter(pf -> pf.date().getYear() == targetYear && pf.date().getMonthValue() == targetMonth)
+                            .toList();
+
+                    for (ParsedFileName pf : invalidDirFiles) {
+                        invalidDirTableModel.addRow(new Object[]{pf.filePath(), pf.ico(), pf.insuranceCompany().toString(), pf.parentDirName()});
                     }
 
                     for (ErrorReport error : result.errors()) {
@@ -664,9 +735,9 @@ public class ResultsWindow extends JFrame {
                     long clientsWithReports = successfulClients.size();
 
                     String status = String.format(
-                            "Zdroj: %s | Celkem: %d | S reporty: %d | Chybějící: %d | Chyby: %d | Chybí v tabulce: %d",
+                            "Zdroj: %s | Celkem: %d | S reporty: %d | Chybějící: %d | Chyby: %d | Chyby adresářů: %d | Chybí v tabulce: %d",
                             spreadsheetSource.type(), totalClients, clientsWithReports,
-                            missingClients.size(), result.errors().size(), missingInTable.size()
+                            missingClients.size(), result.errors().size(), invalidDirFiles.size(), missingInTable.size()
                     );
                     statusLabel.setText(status);
                     statusLabel.setForeground(UiTheme.TEXT_PRIMARY);
@@ -675,6 +746,7 @@ public class ResultsWindow extends JFrame {
                     tabbedPane.setTitleAt(1, "Chybějící reporty (" + missingClients.size() + ")");
                     tabbedPane.setTitleAt(2, "Chyby při načítání (" + result.errors().size() + ")");
                     tabbedPane.setTitleAt(3, "Chybí v tabulce (" + missingInTable.size() + ")");
+                    tabbedPane.setTitleAt(4, "Nesprávné adresáře (" + invalidDirFiles.size() + ")");
 
                     saveButton.setEnabled(!result.clients().isEmpty());
 
@@ -714,5 +786,116 @@ public class ResultsWindow extends JFrame {
              List<ParsedFileName> parsedFiles
      ) {
      }
- }
 
+    /**
+     * Move only selected rows from the invalid-dir table.
+     */
+    private void moveSelectedInvalidFiles() {
+        int[] selected = invalidDirTable.getSelectedRows();
+        if (selected == null || selected.length == 0) {
+            JOptionPane.showMessageDialog(this, "Vyberte alespoň jeden soubor k přesunu.", "Upozornění", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        moveInvalidFilesByViewIndices(selected);
+    }
+
+    /**
+     * Move all rows from the invalid-dir table.
+     */
+    private void moveAllInvalidFiles() {
+        int rowCount = invalidDirTableModel.getRowCount();
+        if (rowCount == 0) {
+            JOptionPane.showMessageDialog(this, "Žádné soubory k přesunu.", "Informace", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        int[] all = new int[rowCount];
+        for (int i = 0; i < rowCount; i++) all[i] = i;
+        moveInvalidFilesByViewIndices(all);
+    }
+
+    /**
+     * Common mover that accepts view indices from the table, moves files in background and updates the UI model.
+     */
+    private void moveInvalidFilesByViewIndices(int[] viewRows) {
+        // convert to model indices and collect file info
+        int[] modelRows = new int[viewRows.length];
+        for (int i = 0; i < viewRows.length; i++) {
+            modelRows[i] = invalidDirTable.convertRowIndexToModel(viewRows[i]);
+        }
+
+        // collect data
+        var tasks = new java.util.ArrayList<MoveTask>();
+        for (int mr : modelRows) {
+            String filePath = (String) invalidDirTableModel.getValueAt(mr, 0);
+            String ico = (String) invalidDirTableModel.getValueAt(mr, 1);
+            String insurerName = (String) invalidDirTableModel.getValueAt(mr, 2);
+            tasks.add(new MoveTask(mr, filePath, ico, insurerName));
+        }
+
+        // confirm
+        if (JOptionPane.showConfirmDialog(this,
+                "Opravdu chcete přesunout " + tasks.size() + " souborů do odpovídajících složek pojišťoven?",
+                "Potvrdit přesun",
+                JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        showProgress("Přesouvání souborů...");
+        SwingWorker<Void, Void> worker = new SwingWorker<>() {
+            final java.util.List<String> errors = new java.util.ArrayList<>();
+            @Override
+            protected Void doInBackground() {
+                Path root = Paths.get(folderPath);
+                FileMover mover = new FileMover(root);
+                for (MoveTask t : tasks) {
+                    try {
+                        // attempt to resolve insurer from display name (model stores insurer.toString())
+                        java.util.Optional<InsuranceCompany> maybe = InsuranceCompany.fromDisplayName(t.insurerName);
+                        InsuranceCompany insurer = maybe.orElseGet(() -> {
+                            // fallback: try to match by first token
+                            return InsuranceCompany.values()[0];
+                        });
+                        Path target = mover.ensureOrCreateFolder(insurer);
+                        Path src = Paths.get(t.filePath);
+                        mover.moveFileToFolder(src, target);
+                    } catch (IOException ex) {
+                        log.error("Failed to move file {}", t.filePath, ex);
+                        errors.add(t.filePath + ": " + ex.getMessage());
+                    }
+                }
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                hideProgress();
+
+                // Always reload the data so tables reflect the current filesystem state after moves.
+                // Show user feedback first, then refresh.
+                if (errors.isEmpty()) {
+                    JOptionPane.showMessageDialog(ResultsWindow.this, "Soubory byly přesunuty.", "Hotovo", JOptionPane.INFORMATION_MESSAGE);
+                } else {
+                    String msg = "Některé soubory se nepodařilo přesunout:\n" + String.join("\n", errors);
+                    JOptionPane.showMessageDialog(ResultsWindow.this, msg, "Chyba při přesunu", JOptionPane.ERROR_MESSAGE);
+                }
+
+                // Trigger a full reload to refresh all tabs (runs on EDT since done() is called on EDT)
+                loadData();
+            }
+        };
+        worker.execute();
+    }
+
+    private static class MoveTask {
+        final int modelRow;
+        final String filePath;
+        final String ico;
+        final String insurerName;
+        MoveTask(int modelRow, String filePath, String ico, String insurerName) {
+            this.modelRow = modelRow;
+            this.filePath = filePath;
+            this.ico = ico;
+            this.insurerName = insurerName;
+        }
+    }
+}

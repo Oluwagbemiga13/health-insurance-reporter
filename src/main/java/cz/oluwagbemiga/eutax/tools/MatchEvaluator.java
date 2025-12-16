@@ -83,7 +83,14 @@ public class MatchEvaluator {
         int targetYear = LocalDate.now().getYear();
         int targetMonth = month.getMonthNumber();
 
+        // Exclude files with invalid directories from matching
+        long invalidCount = parsedFiles.stream().filter(ParsedFileName::invalidDirectory).count();
+        if (invalidCount > 0) {
+            log.info("Excluding {} files with invalid parent directories from matching", invalidCount);
+        }
+
         Map<String, Set<InsuranceCompany>> icoToInsurers = parsedFiles.stream()
+                .filter(pf -> !pf.invalidDirectory())
                 .filter(pf -> pf.date().getYear() == targetYear
                         && pf.date().getMonthValue() == targetMonth)
                 .collect(Collectors.groupingBy(
@@ -134,6 +141,7 @@ public class MatchEvaluator {
         }
 
         Map<String, Set<InsuranceCompany>> icoToInsurers = parsedFiles.stream()
+                .filter(pf -> !pf.invalidDirectory())
                 .filter(pf -> pf.date().getYear() == year
                         && pf.date().getMonthValue() == month.getMonthNumber())
                 .collect(Collectors.groupingBy(

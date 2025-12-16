@@ -1,9 +1,12 @@
 package cz.oluwagbemiga.eutax.pojo;
 
+import lombok.Getter;
+
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
+@Getter
 public enum InsuranceCompany {
     CPZP(List.of("CPZP","ČPZP"), "K", 11),
     OZP(List.of("OZP"), "L", 12),
@@ -21,18 +24,6 @@ public enum InsuranceCompany {
         this.displayNames = displayNames;
         this.columnLetter = columnLetter;
         this.columnIndex = columnIndex;
-    }
-
-    public List<String> getDisplayNames() {
-        return displayNames;
-    }
-
-    public String getColumnLetter() {
-        return columnLetter;
-    }
-
-    public int getColumnIndex() {
-        return columnIndex;
     }
 
     @Override

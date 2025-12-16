@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.*;
@@ -195,9 +196,70 @@ public class InfoFromFiles {
             insuranceCompany = InsuranceCompany.values()[0];
         }
 
-        return new ParsedFileName(ico, reportDate, insuranceCompany, file.toString());
+        // New: determine parent directory name and whether it matches the insurer display names
+        String parentName = "";
+        Path parent = file.getParent();
+        if (parent != null && parent.getFileName() != null) {
+            parentName = parent.getFileName().toString();
+        }
+
+        boolean invalidDir;
+        if (parentName.isBlank()) {
+            invalidDir = true;
+        } else {
+            String normalizedParent = normalizeForComparison(parentName);
+            boolean matchedParent = insuranceCompany.getDisplayNames().stream()
+                    .map(InfoFromFiles::normalizeForComparison)
+                    .anyMatch(normDisplay -> parentMatches(normalizedParent, normDisplay));
+            invalidDir = !matchedParent;
+        }
+
+        return new ParsedFileName(ico, reportDate, insuranceCompany, file.toString(), invalidDir, parentName);
     }
 
+    /**
+     * Normalize a folder/display name for comparison: remove diacritics, replace underscores/hyphens with spaces,
+     * collapse whitespace, strip leading non-alphanumeric characters, and uppercase.
+     */
+    private static String normalizeForComparison(String s) {
+        if (s == null) return "";
+        String trimmed = s.trim();
+        if (trimmed.isEmpty()) return "";
+        // NFD normalize and remove diacritics
+        String noDiacritics = Normalizer.normalize(trimmed, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "");
+        // Replace underscores/hyphens with spaces and collapse whitespace
+        String replaced = noDiacritics.replaceAll("[_-]+", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+        // Remove leading non-alphanumeric chars
+        replaced = replaced.replaceAll("^[^A-Za-z0-9]+", "");
+        return replaced.toUpperCase(Locale.ROOT);
+    }
+
+    /**
+     * Determine whether normalized parent folder name should be considered a match for the normalized display name.
+     * Accepts exact equality or token-based containment (display name appears as a whole token sequence inside parent).
+     */
+    private static boolean parentMatches(String normalizedParent, String normalizedDisplay) {
+        if (normalizedParent.equals(normalizedDisplay)) return true;
+        // token-based containment: split parent into tokens and try to find the sequence of tokens matching display
+        String[] parentTokens = normalizedParent.split(" ");
+        String[] displayTokens = normalizedDisplay.split(" ");
+        if (displayTokens.length == 0) return false;
+
+        for (int i = 0; i <= parentTokens.length - displayTokens.length; i++) {
+            boolean all = true;
+            for (int j = 0; j < displayTokens.length; j++) {
+                if (!parentTokens[i + j].equals(displayTokens[j])) {
+                    all = false;
+                    break;
+                }
+            }
+            if (all) return true;
+        }
+        return false;
+    }
 
     /**
      * Attempts to find year and month tokens in the parsed file name segments.
