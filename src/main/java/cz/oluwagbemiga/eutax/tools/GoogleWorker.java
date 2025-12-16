@@ -21,6 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.util.*;
+import java.util.function.Supplier;
 
 
 /**
@@ -67,6 +68,27 @@ public final class GoogleWorker implements SpreadsheetWorker {
      */
     @Setter
     private static volatile String googleServiceAccountJson;
+
+
+    /**
+     * Package-private test hook allowing injection of a mocked Sheets service for unit tests.
+     * When null, the production service created by createSheetsService() is used.
+     */
+    static volatile Supplier<Sheets> sheetsServiceProvider = null;
+
+    /**
+     * Sets a Supplier that provides a Sheets instance. For tests only.
+     */
+    static void setSheetsServiceProvider(Supplier<Sheets> provider) {
+        sheetsServiceProvider = provider;
+    }
+
+    /**
+     * Clears the test Sheets provider, restoring production behavior.
+     */
+    static void clearSheetsServiceProvider() {
+        sheetsServiceProvider = null;
+    }
 
 
     /**
@@ -327,6 +349,13 @@ public final class GoogleWorker implements SpreadsheetWorker {
      */
     private static Sheets createSheetsService() throws IOException {
         log.debug("Creating Google Sheets API service");
+        // If a test provider is set, use it (package-private test hook)
+        if (sheetsServiceProvider != null) {
+            Sheets provided = sheetsServiceProvider.get();
+            if (provided != null) {
+                return provided;
+            }
+        }
         try {
             com.google.api.client.http.HttpTransport transport =
                     com.google.api.client.googleapis.javanet.GoogleNetHttpTransport.newTrustedTransport();

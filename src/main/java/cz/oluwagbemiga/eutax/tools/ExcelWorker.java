@@ -264,9 +264,9 @@ public class ExcelWorker implements SpreadsheetWorker {
 
             log.info("Updating sheet '{}' in file: {}", month.getCzechName(), filePath);
 
-            int resetCount = 0;
             int setTrueCount = 0;
             int ignoredCount = 0;
+            boolean anyChange = false;
 
             // Skip the header row (row 0) and start updating from row 1
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
@@ -289,33 +289,33 @@ public class ExcelWorker implements SpreadsheetWorker {
                     continue;
                 }
 
-                // Ensure the reportGeneratedCell exists so we can set boolean values
-                if (reportGeneratedCell == null) {
-                    reportGeneratedCell = row.createCell(6);
-                }
-
-                // First, reset non-NE cells to false (this will overwrite previous true values)
-                boolean previousValue = getCellValueAsBoolean(reportGeneratedCell);
-                if (previousValue) {
-                    reportGeneratedCell.setCellValue(false);
-                    resetCount++;
-                    log.debug("Reset row {} ICO '{}' reportGenerated from true to false", i, ico != null ? ico.trim() : "");
-                } else {
-                    // If it wasn't true before, we still ensure it's set to false (for consistent typing)
-                    reportGeneratedCell.setCellValue(false);
-                }
-
-                // If ICO is in the set of clients that should have reportGenerated=true, set it to true
+                // Only set to true for ICOs present in the provided set. Do not reset other cells to false.
                 if (ico != null && !ico.trim().isEmpty() && icoSet.contains(ico.trim())) {
-                    reportGeneratedCell.setCellValue(true);
-                    setTrueCount++;
-                    log.debug("Set row {} ICO '{}' reportGenerated to: true", i, ico.trim());
+                    // Ensure the cell exists so we can set boolean values
+                    boolean previousValue = false;
+                    if (reportGeneratedCell == null) {
+                        reportGeneratedCell = row.createCell(6);
+                    } else {
+                        previousValue = getCellValueAsBoolean(reportGeneratedCell);
+                    }
+
+                    // Only update if it wasn't true already
+                    if (!previousValue) {
+                        reportGeneratedCell.setCellValue(true);
+                        setTrueCount++;
+                        anyChange = true;
+                        log.debug("Set row {} ICO '{}' reportGenerated to: true", i, ico.trim());
+                    } else {
+                        log.debug("Row {} ICO '{}' already true; no change", i, ico.trim());
+                    }
+                } else {
+                    // Do not change existing values when client isn't in the provided list
                 }
             }
 
-            if (resetCount > 0 || setTrueCount > 0) {
-                log.info("Reset {} cells to false, set {} cells to true, ignored {} 'NE' rows in sheet '{}'",
-                        resetCount, setTrueCount, ignoredCount, month.getCzechName());
+            if (anyChange) {
+                log.info("Set {} cells to true, ignored {} 'NE' rows in sheet '{}'",
+                        setTrueCount, ignoredCount, month.getCzechName());
 
                 // Write the changes back to the file
                 try (FileOutputStream fos = new FileOutputStream(file)) {

@@ -2,6 +2,7 @@ package cz.oluwagbemiga.eutax.tools;
 
 import cz.oluwagbemiga.eutax.pojo.Client;
 import cz.oluwagbemiga.eutax.pojo.CzechMonth;
+import cz.oluwagbemiga.eutax.pojo.InsuranceCompany;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -243,5 +244,24 @@ class ExcelWorkerTest {
         for (int i = 0; i < originalClients.size(); i++) {
             assertEquals(originalClients.get(i).reportGenerated(), clientsAfterUpdate.get(i).reportGenerated());
         }
+    }
+
+    @Test
+    @SneakyThrows
+    void testInsuranceCompaniesParsing() {
+        ExcelWorker reader = new ExcelWorker();
+        String filePath = "src/test/resources/Zdrav. pojišťovny.xlsx";
+
+        List<Client> clients = reader.readClients(filePath, CzechMonth.UNOR);
+        assertEquals(3, clients.size(), "Should read 3 clients from UNOR sheet");
+
+        // First client should contain ZPMV
+        List<InsuranceCompany> firstIns = clients.get(0).insuranceCompanies();
+        assertNotNull(firstIns);
+        assertTrue(firstIns.contains(InsuranceCompany.ZPMV), "First client should have ZPMV in insuranceCompanies");
+
+        // Other clients have no insurance companies in the fixture
+        assertTrue(clients.get(1).insuranceCompanies().isEmpty(), "Second client should have no insurance companies");
+        assertTrue(clients.get(2).insuranceCompanies().isEmpty(), "Third client should have no insurance companies");
     }
 }

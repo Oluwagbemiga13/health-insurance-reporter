@@ -166,11 +166,23 @@ public class MatchEvaluator {
     private List<Client> updateClientsWithMatches(List<Client> clients, Map<String, Set<InsuranceCompany>> icoToInsurers) {
         log.debug("Updating {} clients with {} available report-insurer entries", clients.size(), icoToInsurers.size());
         List<Client> updatedClients = new ArrayList<>();
+
+        // Normalize the map keys (trim) to avoid missing matches due to whitespace
+        Map<String, Set<InsuranceCompany>> normalizedMap = icoToInsurers.entrySet().stream()
+                .collect(Collectors.toMap(e -> e.getKey() == null ? null : e.getKey().trim(), Map.Entry::getValue));
+
         for (Client client : clients) {
             boolean hasReport = false;
-            Set<InsuranceCompany> available = icoToInsurers.get(client.ico());
-            if (available != null && client.insuranceCompanies() != null && !client.insuranceCompanies().isEmpty()) {
-                hasReport = available.containsAll(client.insuranceCompanies());
+            String clientIcoKey = client.ico() == null ? null : client.ico().trim();
+            Set<InsuranceCompany> available = normalizedMap.get(clientIcoKey);
+
+            if (available != null) {
+                // If client has no specific required insurers, any available insurer for the ICO counts as a match
+                if (client.insuranceCompanies() == null || client.insuranceCompanies().isEmpty()) {
+                    hasReport = !available.isEmpty();
+                } else {
+                    hasReport = available.containsAll(client.insuranceCompanies());
+                }
             }
 
             updatedClients.add(new Client(

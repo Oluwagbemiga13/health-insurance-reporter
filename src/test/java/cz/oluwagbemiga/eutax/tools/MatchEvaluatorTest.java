@@ -2,6 +2,7 @@ package cz.oluwagbemiga.eutax.tools;
 
 import cz.oluwagbemiga.eutax.pojo.Client;
 import cz.oluwagbemiga.eutax.pojo.CzechMonth;
+import cz.oluwagbemiga.eutax.pojo.ErrorReport;
 import cz.oluwagbemiga.eutax.pojo.InsuranceCompany;
 import cz.oluwagbemiga.eutax.pojo.ParsedFileName;
 import cz.oluwagbemiga.eutax.pojo.WalkerResult;
@@ -142,4 +143,115 @@ class MatchEvaluatorTest {
         assertTrue(updated.get(0).reportGenerated());
         assertFalse(updated.get(1).reportGenerated());
     }
+
+    // New tests start here
+
+    @Test
+    void evaluateMatches_trimsIcoKeys_matchesWhenWhitespace() throws Exception {
+        int year = 2025;
+        CzechMonth month = CzechMonth.DUBEN;
+
+        List<Client> clients = List.of(new Client("Trim Client", " 33333333 ", false, List.of()));
+        List<ParsedFileName> parsed = List.of(new ParsedFileName("33333333", LocalDate.of(year, month.getMonthNumber(), 10), InsuranceCompany.VZP, ""));
+        WalkerResult wr = new WalkerResult(parsed, List.of());
+
+        MatchEvaluator evaluator = new MatchEvaluator(new SpreadsheetWorkerStub(clients), new InfoFromFilesStub(wr));
+        List<Client> updated = evaluator.evaluateMatches("ignored", "ignoredDir", month, year);
+
+        assertEquals(1, updated.size());
+        assertTrue(updated.get(0).reportGenerated(), "Whitespace around ICO should be trimmed and match");
+    }
+
+    @Test
+    void evaluateMatches_handlesMultipleRequiredInsurers_successAndPartialFail() throws Exception {
+        int year = 2024;
+        CzechMonth month = CzechMonth.KVETEN;
+
+        Client successClient = new Client("Multi OK", "77777777", false, List.of(InsuranceCompany.VZP, InsuranceCompany.CPZP));
+        Client failClient = new Client("Multi Partial", "88888888", false, List.of(InsuranceCompany.VZP, InsuranceCompany.CPZP));
+
+        List<Client> clients = List.of(successClient, failClient);
+
+        List<ParsedFileName> parsed = List.of(
+                // for successClient both insurers present
+                new ParsedFileName("77777777", LocalDate.of(year, month.getMonthNumber(), 1), InsuranceCompany.VZP, ""),
+                new ParsedFileName("77777777", LocalDate.of(year, month.getMonthNumber(), 2), InsuranceCompany.CPZP, ""),
+                // for failClient only one insurer present
+                new ParsedFileName("88888888", LocalDate.of(year, month.getMonthNumber(), 3), InsuranceCompany.VZP, "")
+        );
+
+        WalkerResult wr = new WalkerResult(parsed, List.of());
+        MatchEvaluator evaluator = new MatchEvaluator(new SpreadsheetWorkerStub(clients), new InfoFromFilesStub(wr));
+
+        List<Client> updated = evaluator.evaluateMatches("ignored", "ignoredDir", month, year);
+        assertEquals(2, updated.size());
+        assertTrue(updated.get(0).reportGenerated(), "Client with all required insurers should be marked as having report");
+        assertFalse(updated.get(1).reportGenerated(), "Client missing one insurer should not be marked as having report");
+    }
+
+    @Test
+    void evaluateMatches_ignoresInvalidDirectories() throws Exception {
+        int year = 2023;
+        CzechMonth month = CzechMonth.CERVEN;
+
+        Client client = new Client("Invalid Dir", "44444444", false, List.of());
+        List<Client> clients = List.of(client);
+
+        List<ParsedFileName> parsed = List.of(
+                new ParsedFileName("44444444", LocalDate.of(year, month.getMonthNumber(), 5), InsuranceCompany.VZP, "", true, "badDir")
+        );
+
+        WalkerResult wr = new WalkerResult(parsed, List.of());
+        MatchEvaluator evaluator = new MatchEvaluator(new SpreadsheetWorkerStub(clients), new InfoFromFilesStub(wr));
+
+        List<Client> updated = evaluator.evaluateMatches("ignored", "ignoredDir", month, year);
+        assertEquals(1, updated.size());
+        assertFalse(updated.get(0).reportGenerated(), "Files from invalid directories must be excluded from matching");
+    }
+
+    @Test
+    void evaluateMatches_handlesErrorReports_butStillMatches() throws Exception {
+        int year = 2022;
+        CzechMonth month = CzechMonth.SRPEN; // August
+
+        Client client = new Client("Err Client", "55555555", false, List.of());
+        List<Client> clients = List.of(client);
+
+        List<ParsedFileName> parsed = List.of(
+                new ParsedFileName("55555555", LocalDate.of(year, month.getMonthNumber(), 12), InsuranceCompany.ZPMV, "")
+        );
+
+        List<ErrorReport> errors = List.of(new ErrorReport("badfile.pdf", "parse error"));
+        WalkerResult wr = new WalkerResult(parsed, errors);
+
+        MatchEvaluator evaluator = new MatchEvaluator(new SpreadsheetWorkerStub(clients), new InfoFromFilesStub(wr));
+        List<Client> updated = evaluator.evaluateMatches("ignored", "ignoredDir", month, year);
+
+        assertEquals(1, updated.size());
+        assertTrue(updated.get(0).reportGenerated(), "Presence of error reports should not prevent valid parsed files from matching");
+    }
+
+    @Test
+    void evaluateMatches_nullOrBlankIco_noMatch() throws Exception {
+        int year = 2025;
+        CzechMonth month = CzechMonth.ZARI;
+
+        Client nullIco = new Client("Null ICO", null, false, List.of());
+        Client blankIco = new Client("Blank ICO", "   ", false, List.of());
+        Client normal = new Client("Normal", "99999999", false, List.of());
+
+        List<Client> clients = List.of(nullIco, blankIco, normal);
+
+        List<ParsedFileName> parsed = List.of(new ParsedFileName("99999999", LocalDate.of(year, month.getMonthNumber(), 10), InsuranceCompany.VOZP, ""));
+        WalkerResult wr = new WalkerResult(parsed, List.of(new ErrorReport("somefile", "parse error")));
+
+        MatchEvaluator evaluator = new MatchEvaluator(new SpreadsheetWorkerStub(clients), new InfoFromFilesStub(wr));
+        List<Client> updated = evaluator.evaluateMatches("ignored", "ignoredDir", month, year);
+
+        assertEquals(3, updated.size());
+        assertFalse(updated.get(0).reportGenerated(), "Client with null ICO should not match");
+        assertFalse(updated.get(1).reportGenerated(), "Client with blank ICO should not match");
+        assertTrue(updated.get(2).reportGenerated(), "Normal client should match when parsed file exists");
+    }
+
 }
