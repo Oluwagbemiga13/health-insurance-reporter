@@ -11,7 +11,7 @@ public enum InsuranceCompany {
     CPZP(List.of("CPZP","ČPZP"), "K", 11),
     OZP(List.of("OZP"), "L", 12),
     RBP(List.of("RBP","RPB"), "M", 13),
-    VOZP(List.of("VOZP","V0ZP"), "N", 14),
+    VOZP(List.of("VOZP", "V0ZP", "VoZP"), "N", 14),
     VZP(List.of("VZP"), "O", 15),
     ZP_SKODA(List.of("ZP Škoda", "ZPŠ", "ZPS", "ZP Skoda"), "P", 16),
     ZPMV(List.of("ZPMV","ZMVP"), "Q", 17);

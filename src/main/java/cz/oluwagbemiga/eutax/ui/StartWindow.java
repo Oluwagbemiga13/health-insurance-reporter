@@ -88,7 +88,7 @@ public class StartWindow extends JFrame {
         footerPanel.setOpaque(false);
         footerPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        JLabel versionLabel = new JLabel("v1.0");
+        JLabel versionLabel = new JLabel("v1.0.1");
         versionLabel.setFont(UiTheme.FONT_SMALL);
         versionLabel.setForeground(UiTheme.TEXT_SECONDARY);
         footerPanel.add(versionLabel);

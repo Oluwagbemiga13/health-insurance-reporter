@@ -34,6 +34,7 @@ public class ResultsWindow extends JFrame {
     private final String folderPath;
     private final SpreadsheetSource spreadsheetSource;
     private final CzechMonth month;
+    private final int year;
 
     private final DefaultTableModel successfulMatchesModel;
     private final DefaultTableModel missingReportsModel;
@@ -62,10 +63,11 @@ public class ResultsWindow extends JFrame {
     // Success message components
     private JPanel successPanel;
 
-    public ResultsWindow(String folderPath, SpreadsheetSource spreadsheetSource, CzechMonth month) {
+    public ResultsWindow(String folderPath, SpreadsheetSource spreadsheetSource, CzechMonth month, int year) {
         this.folderPath = folderPath;
         this.spreadsheetSource = spreadsheetSource;
         this.month = month;
+        this.year = year;
 
         UiTheme.apply();
         setTitle("Výsledky kontroly - " + month.getCzechName());
@@ -614,7 +616,7 @@ public class ResultsWindow extends JFrame {
                     InfoFromFiles infoFromFiles = new InfoFromFiles();
                     MatchEvaluator evaluator = new MatchEvaluator(spreadsheetWorker, infoFromFiles);
 
-                    List<Client> clients = evaluator.evaluateMatches(spreadsheetSource.identifier(), folderPath, month);
+                    List<Client> clients = evaluator.evaluateMatches(spreadsheetSource.identifier(), folderPath, month, year);
                     WalkerResult walkerResult = infoFromFiles.readReports(folderPath);
 
                     return new EvaluationResult(clients, walkerResult.errorReports(), null, walkerResult.parsedFileNames());
@@ -659,25 +661,20 @@ public class ResultsWindow extends JFrame {
                             .toList();
 
                     // Build ICO -> available insurers map for the same target month/year used during evaluation
-                    int targetYear = LocalDate.now().getYear();
+                    int targetYear = year;
                     int targetMonth = month.getMonthNumber();
-                    // Build two ICO -> available insurers maps:
-                    // 1) For evaluation display (includes files even from invalid directories) so "Chybějící pojišťovny" reflects presence of files
-                    Map<String, Set<InsuranceCompany>> icoToInsurersForDisplay = result.parsedFiles().stream()
-                            .filter(pf -> pf.date().getYear() == targetYear && pf.date().getMonthValue() == targetMonth)
-                            .collect(Collectors.groupingBy(
-                                    ParsedFileName::ico,
-                                    Collectors.mapping(ParsedFileName::insuranceCompany, Collectors.toSet())
-                            ));
 
-                    // 2) For evaluation saving (matches MatchEvaluator behavior) - exclude invalid-directory files
+                    // Build ICO -> available insurers map (matches MatchEvaluator behavior) - exclude invalid-directory files
                     Map<String, Set<InsuranceCompany>> icoToInsurersForEvaluation = result.parsedFiles().stream()
                             .filter(pf -> !pf.invalidDirectory())
                             .filter(pf -> pf.date().getYear() == targetYear && pf.date().getMonthValue() == targetMonth)
+                            .filter(pf -> pf.ico() != null)
                             .collect(Collectors.groupingBy(
-                                    ParsedFileName::ico,
+                                    pf -> pf.ico().trim(),
                                     Collectors.mapping(ParsedFileName::insuranceCompany, Collectors.toSet())
                             ));
+
+                    log.debug("ICO to insurers map: {}", icoToInsurersForEvaluation);
 
                     for (Client client : successfulClients) {
                         successfulMatchesModel.addRow(new Object[]{client.name(), client.ico()});
@@ -691,12 +688,15 @@ public class ResultsWindow extends JFrame {
                         } else {
                             // Use the evaluation map (which excludes files in invalid directories)
                             // so that files located in wrong folders are considered missing here.
-                            Set<InsuranceCompany> available = icoToInsurersForEvaluation.get(client.ico());
-                            String joined = client.insuranceCompanies().stream()
+                            String clientIcoKey = client.ico() == null ? null : client.ico().trim();
+                            Set<InsuranceCompany> available = icoToInsurersForEvaluation.get(clientIcoKey);
+                            log.debug("Client: {}, ICO: '{}', Required: {}, Available: {}",
+                                    client.name(), clientIcoKey, client.insuranceCompanies(), available);
+                            missingInsurers = client.insuranceCompanies().stream()
                                     .filter(req -> available == null || !available.contains(req))
                                     .map(InsuranceCompany::toString)
                                     .collect(Collectors.joining(", "));
-                            missingInsurers = joined;
+                            log.debug("Missing insurers for {}: '{}'", client.name(), missingInsurers);
                         }
 
                         missingReportsModel.addRow(new Object[]{client.name(), client.ico(), missingInsurers});

@@ -6,7 +6,7 @@
 
     <groupId>cz.oluwagbemiga.eutax</groupId>
     <artifactId>health-insurance-reporter</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0.1</version>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
@@ -198,11 +198,11 @@
                                 <requiresJdk>false</requiresJdk>
                             </jre>
                             <versionInfo>
-                                <fileVersion>1.0.0.0</fileVersion>
+                                <fileVersion>1.0.1.0</fileVersion>
                                 <txtFileVersion>${project.version}</txtFileVersion>
                                 <fileDescription>Aplikace pro kontrolu přehledu zdravotnich pojistoven</fileDescription>
                                 <copyright>Copyright © 2025 Daniel Rakovsky</copyright>
-                                <productVersion>1.0.0.0</productVersion>
+                                <productVersion>1.0.1.0</productVersion>
                                 <txtProductVersion>${project.version}</txtProductVersion>
                                 <productName>Kontrola prehledu ZP</productName>
                                 <companyName>Daniel Rakovsky</companyName>

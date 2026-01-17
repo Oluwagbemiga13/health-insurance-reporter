@@ -64,6 +64,23 @@
     Aplikace umožňuje porovnat seznam klientů uvedený v Excel tabulce (.xlsx) nebo Google Sheets s PDF přehledy vygenerovanými účetními programy <strong>MONEY</strong> a <strong>POHODA</strong>.
     Cílem je rychle zjistit, zda jsou všechny požadované přehledy vytvořené, nebo zda některé chybí.</p>
 <hr>
+
+<h2 id="verze-a-zmeny">🧾 Verze a změny</h2>
+<ul>
+    <li><strong>1.0.1</strong> (2026-01-12)
+        <ul>
+            <li>Přidána možnost výběru roku v uživatelském rozhraní (combobox).</li>
+            <li>Oprava chování: nyní se implicitně vybere aktuální rok, ale uživatel může zvolit i předchozí rok.</li>
+            <li>Aktualizována verze balíčku na <code>1.0.1</code>.</li>
+        </ul>
+    </li>
+    <li><strong>1.0.0</strong> (původní vydání)
+        <ul>
+            <li>Počáteční funkce aplikace: import Excel/Google Sheets, kontrola PDF přehledů podle IČO, zobrazení výsledků.</li>
+        </ul>
+    </li>
+</ul>
+<hr>
 <h2 id="-hlavn-funkce">💡 Hlavní funkce</h2>
 <h3 id="-import-seznamu-klient-">✔️ Import seznamu klientů</h3>
 <p>Aplikace načte Excel tabulku (.xlsx) nebo Google Sheets obsahující seznam klientů (název a IČO).</p>
@@ -204,7 +221,7 @@
 mvn clean package
 
 <span class="hljs-meta"># Výsledné soubory:</span>
-<span class="hljs-meta"># - target/health-insurance-reporter-1.0-SNAPSHOT.jar</span>
+<span class="hljs-meta"># - target/health-insurance-reporter-1.0.1.jar</span>
 <span class="hljs-meta"># - target/health-insurance-reporter.exe</span>
 </code></pre>
 <hr>
@@ -213,4 +230,3 @@ mvn clean package
 
 </body>
 </html>
-

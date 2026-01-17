@@ -10,6 +10,7 @@ import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
 import java.util.prefs.Preferences;
 
 public class SourcesSelectionWindow extends JFrame {
@@ -18,11 +19,13 @@ public class SourcesSelectionWindow extends JFrame {
     private static final String PREF_FOLDER_PATH = "folderPath";
     private static final String PREF_SPREADSHEET_PATH = "spreadsheetPath";
     private static final String PREF_SELECTED_MONTH = "selectedMonth";
+    private static final String PREF_SELECTED_YEAR = "selectedYear";
 
     private final Preferences prefs = Preferences.userNodeForPackage(SourcesSelectionWindow.class);
     private final JTextField folderField = UiTheme.createTextField();
     private final JTextField spreadsheetField = UiTheme.createTextField();
     private final JComboBox<CzechMonth> monthComboBox = new JComboBox<>(CzechMonth.values());
+    private final JComboBox<Integer> yearComboBox = new JComboBox<>();
     private final JLabel errorLabel = UiTheme.createErrorLabel();
     private JButton continueButton;
     private SpreadsheetSource spreadsheetSource;
@@ -40,16 +43,25 @@ public class SourcesSelectionWindow extends JFrame {
     }
 
     private void loadSavedPreferences() {
+        // Populate year combobox with current year and previous year
+        int currentYear = LocalDate.now().getYear();
+        yearComboBox.addItem(currentYear);
+        yearComboBox.addItem(currentYear - 1);
+
         folderField.setText(prefs.get(PREF_FOLDER_PATH, ""));
         spreadsheetField.setText(prefs.get(PREF_SPREADSHEET_PATH, ""));
         int savedMonth = prefs.getInt(PREF_SELECTED_MONTH, java.time.LocalDate.now().getMonthValue() - 1);
         monthComboBox.setSelectedIndex(Math.max(0, Math.min(savedMonth, 11)));
+
+        int savedYear = prefs.getInt(PREF_SELECTED_YEAR, currentYear);
+        yearComboBox.setSelectedItem(savedYear);
     }
 
     private void savePreferences() {
         prefs.put(PREF_FOLDER_PATH, folderField.getText());
         prefs.put(PREF_SPREADSHEET_PATH, spreadsheetField.getText());
         prefs.putInt(PREF_SELECTED_MONTH, monthComboBox.getSelectedIndex());
+        prefs.putInt(PREF_SELECTED_YEAR, (Integer) yearComboBox.getSelectedItem());
     }
 
     private void buildUi() {
@@ -151,20 +163,35 @@ public class SourcesSelectionWindow extends JFrame {
 
         section.add(Box.createVerticalStrut(UiTheme.SPACING_XS));
 
-        JLabel descLabel = UiTheme.createDescriptionLabel("Vyberte měsíc, za který chcete provést kontrolu.");
+        JLabel descLabel = UiTheme.createDescriptionLabel("Vyberte měsíc a rok, za který chcete provést kontrolu.");
         descLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         section.add(descLabel);
 
         section.add(Box.createVerticalStrut(UiTheme.SPACING_SM));
 
+        // Create a horizontal panel for month and year comboboxes
+        JPanel comboPanel = new JPanel();
+        comboPanel.setOpaque(false);
+        comboPanel.setLayout(new FlowLayout(FlowLayout.LEFT, UiTheme.SPACING_SM, 0));
+        comboPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
         UiTheme.styleComboBox(monthComboBox);
-        monthComboBox.setAlignmentX(Component.LEFT_ALIGNMENT);
-        monthComboBox.setMaximumSize(new Dimension(200, 36));
+        monthComboBox.setPreferredSize(new Dimension(150, 36));
         monthComboBox.addActionListener(e -> {
             savePreferences();
             validateInputs();
         });
-        section.add(monthComboBox);
+        comboPanel.add(monthComboBox);
+
+        UiTheme.styleComboBox(yearComboBox);
+        yearComboBox.setPreferredSize(new Dimension(100, 36));
+        yearComboBox.addActionListener(e -> {
+            savePreferences();
+            validateInputs();
+        });
+        comboPanel.add(yearComboBox);
+
+        section.add(comboPanel);
 
         return section;
     }
@@ -206,7 +233,8 @@ public class SourcesSelectionWindow extends JFrame {
             String folder = folderField.getText();
             SpreadsheetSource source = buildSource();
             CzechMonth month = (CzechMonth) monthComboBox.getSelectedItem();
-            SwingUtilities.invokeLater(() -> new ResultsWindow(folder, source, month));
+            int year = (Integer) yearComboBox.getSelectedItem();
+            SwingUtilities.invokeLater(() -> new ResultsWindow(folder, source, month, year));
         });
         buttonsPanel.add(continueButton);
 
